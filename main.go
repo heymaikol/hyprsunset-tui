@@ -138,7 +138,7 @@ func (m model) View() string {
 }
 
 func main() {
-	if _, err := tea.NewProgram(initialModel()).Run(); err != nil {
+	if _, err := tea.NewProgram(initialModel(), tea.WithAltScreen()).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}

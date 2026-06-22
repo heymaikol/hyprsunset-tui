@@ -5,7 +5,40 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
+
+func TestCursorAdjustsSelectedField(t *testing.T) {
+	step := func(m model, k tea.KeyType) model {
+		next, _ := m.Update(tea.KeyMsg{Type: k})
+		return next.(model)
+	}
+
+	m := model{time: "12:00", identity: false, temp: 6000, gamma: 1.0}
+
+	// cursor 0 = time
+	m = step(m, tea.KeyLeft)
+	if m.time != "11:45" {
+		t.Fatalf("time = %q, want 11:45", m.time)
+	}
+
+	// down to identity, toggle
+	m = step(step(m, tea.KeyDown), tea.KeyRight)
+	if !m.identity {
+		t.Fatal("identity = false, want toggled true")
+	}
+
+	// down to temperature, lower
+	m = step(step(m, tea.KeyDown), tea.KeyLeft)
+	if m.temp != 6000-tempStep {
+		t.Fatalf("temp = %d, want %d", m.temp, 6000-tempStep)
+	}
+
+	if adjustTime("00:00", -timeStep) != "23:45" {
+		t.Fatalf("wrap: got %q, want 23:45", adjustTime("00:00", -timeStep))
+	}
+}
 
 func TestClamp(t *testing.T) {
 	if clamp(500, tempMin, tempMax) != tempMin {

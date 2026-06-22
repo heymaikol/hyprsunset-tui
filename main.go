@@ -145,7 +145,8 @@ func CheckDependencies() error {
 	}
 
 	// Check if hyprctl is in PATH
-	// Is it possible to install hyprsunset without hyprland?
+	// I think it is possible to install hyprsunset without hyprland
+	// Could get rid of this section if you cannot
 	if _, err := exec.LookPath("hyprctl"); err != nil {
 		return fmt.Errorf("hyprctl is not found in PATH (Not installed?)")
 	}
@@ -153,10 +154,30 @@ func CheckDependencies() error {
 	return nil
 }
 
+func Notify(title, body string) error {
+	// Check if notify-send is in the PATH
+	if _, err := exec.LookPath("notify-send"); err != nil {
+		return fmt.Errorf("notify-send is not found in PATH (Not installed?)")
+	}
+
+	// This runs the notify-send command
+	return exec.Command(
+		"notify-send",
+		"-a", "hyprsunset-controller",
+		"-u", "critical",
+		title,
+		body,
+	).Run()
+}
+
 func main() {
 	// Check if Dependencies are installed
 	if err := CheckDependencies(); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
+		if notifyErr := Notify("hyprsunset-controller", err.Error()); notifyErr != nil {
+			fmt.Fprintln(os.Stderr, "Notification Error:", notifyErr) // Print this just if Notify() errors
+		}
+
+		fmt.Fprintln(os.Stderr, "Error:", err) // Always show the dependencies error
 		os.Exit(1)
 	}
 

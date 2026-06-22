@@ -16,3 +16,4 @@ func hyprctl(args ...string) error {
 func SetTemperature(kelvin int) error { return hyprctl("temperature", strconv.Itoa(kelvin)) }
 func SetGamma(percent int) error      { return hyprctl("gamma", strconv.Itoa(percent)) }
 func Identity() error                 { return hyprctl("identity") }
+func Reset() error                    { return hyprctl("reset") }

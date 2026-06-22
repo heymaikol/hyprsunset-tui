@@ -13,13 +13,13 @@ go build -o hyprsunset-controller .
 ./hyprsunset-controller        # or: go run .
 ```
 
-Keys: `t/T` or `←/→` temperature · `g/G` or `↓/↑` gamma · `1/2/3` presets · `a`/`enter` apply · `i` identity/reset · `q` quit.
+Keys: `t/T` or `←/→` temperature · `g/G` or `↓/↑` gamma · `1/2/3` presets · `a`/`enter` apply · `i` reset to active config profile · `q` quit.
 
 Applying needs the `hyprsunset` daemon running (`hyprsunset &`). The UI works without it; `apply` just reports an error.
 
 ## Layout
 
 - `main.go` — Bubble Tea TUI (Model/Update/View), presets, key bindings.
-- `hyprsunset.go` — runtime IPC seam (`SetTemperature`, `SetGamma`, `Identity`); shells out to `hyprctl` today, swap for a socket client later.
+- `hyprsunset.go` — runtime IPC seam (`SetTemperature`, `SetGamma`, `Identity`, `Reset`); shells out to `hyprctl` today, swap for a socket client later.
 
 Built on [Bubble Tea](https://github.com/charmbracelet/bubbletea). Other TUI approaches were prototyped on `tui/*` branches.

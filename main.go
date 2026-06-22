@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -22,6 +23,8 @@ const (
 	tempStep, gammaStep = 250, 5
 	tempMin, tempMax    = 1000, 10000
 	gammaMin, gammaMax  = 10, 200
+	neutralTemp         = 6000
+	neutralGamma        = 100
 )
 
 type preset struct {
@@ -59,7 +62,13 @@ type model struct {
 }
 
 func initialModel() model {
-	return model{temp: 6000, gamma: 100}
+	profile, err := currentHyprsunsetProfile(time.Now())
+	m := model{temp: profile.uiTemperature(), gamma: profile.gamma}
+	if err != nil {
+		m.status = "config: " + err.Error()
+		m.statusErr = true
+	}
+	return m
 }
 
 func (m model) Init() tea.Cmd { return nil }
@@ -82,12 +91,12 @@ func applyCmd(temp, gamma int) tea.Cmd {
 	}
 }
 
-func identityCmd() tea.Cmd {
+func resetCmd(profile hyprsunsetProfile) tea.Cmd {
 	return func() tea.Msg {
-		if err := Identity(); err != nil {
-			return appliedMsg{"identity: " + err.Error(), true}
+		if err := Reset(); err != nil {
+			return appliedMsg{"reset: " + err.Error(), true}
 		}
-		return appliedMsg{"reset to neutral", false}
+		return appliedMsg{"reset to config profile: " + profile.statusText(), false}
 	}
 }
 
@@ -112,8 +121,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "a", "enter":
 			return m, applyCmd(m.temp, m.gamma)
 		case "i":
-			m.temp, m.gamma = 6000, 100
-			return m, identityCmd()
+			profile, err := currentHyprsunsetProfile(time.Now())
+			if err != nil {
+				m.status, m.statusErr = "config: "+err.Error(), true
+				return m, nil
+			}
+			m.temp, m.gamma = profile.uiTemperature(), profile.gamma
+			return m, resetCmd(profile)
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
 		}
@@ -127,7 +141,7 @@ func (m model) View() string {
 	s += fmt.Sprintf("  Gamma:       %s %%\n\n", valStyle.Render(strconv.Itoa(m.gamma)))
 	s += dimStyle.Render("  [t/T or ←/→] temp   [g/G or ↓/↑] gamma") + "\n"
 	s += dimStyle.Render("  [1] Day  [2] Evening  [3] Night") + "\n"
-	s += dimStyle.Render("  [a/enter] apply   [i] identity/reset   [q] quit") + "\n"
+	s += dimStyle.Render("  [a/enter] apply   [i] reset to profile   [q] quit") + "\n"
 	if m.status != "" {
 		style := dimStyle
 		if m.statusErr {
@@ -183,7 +197,7 @@ func main() {
 
 	// Create the TUI
 	if _, err := tea.NewProgram(initialModel(), tea.WithAltScreen()).Run(); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
+		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)
 	}
 }

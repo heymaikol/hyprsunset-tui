@@ -20,25 +20,38 @@ import (
 //   - persistence: load before tea.NewProgram, save after Run returns
 
 const (
-	tempStep, gammaStep = 250, 5
-	tempMin, tempMax    = 1000, 10000
-	gammaMin, gammaMax  = 10, 200
-	neutralTemp         = 6000
-	neutralGamma        = 100
+	tempStep                 = 250
+	gammaStep        float32 = 0.1
+	tempMin, tempMax         = 1000, 10000
+	gammaMin         float32 = 0.1
+	gammaMax         float32 = 2.0
+	neutralTemp              = 6000
+	neutralGamma     float32 = 1.0
 )
 
 type preset struct {
-	name        string
-	temp, gamma int
+	name  string
+	temp  int
+	gamma float32
 }
 
 var presets = []preset{
-	{"Day", 6000, 100},
-	{"Evening", 4000, 90},
-	{"Night", 3000, 80},
+	{"Day", 6000, 1.0},
+	{"Evening", 4000, 0.9},
+	{"Night", 3000, 0.8},
 }
 
 func clamp(v, lo, hi int) int {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
+}
+
+func clampFloat(v, lo, hi float32) float32 {
 	if v < lo {
 		return lo
 	}
@@ -56,14 +69,15 @@ var (
 )
 
 type model struct {
-	temp, gamma int
-	status      string
-	statusErr   bool
+	temp      int
+	gamma     float32
+	status    string
+	statusErr bool
 }
 
 func initialModel() model {
-	profile, err := currentHyprsunsetProfile(time.Now())
-	m := model{temp: profile.uiTemperature(), gamma: profile.gamma}
+	profile, err := loadHyprsunsetProfile(time.Now())
+	m := model{temp: profile.temperature, gamma: profile.gamma}
 	if err != nil {
 		m.status = "config: " + err.Error()
 		m.statusErr = true
@@ -79,24 +93,15 @@ type appliedMsg struct {
 	isErr bool
 }
 
-func applyCmd(temp, gamma int) tea.Cmd {
+func applyCmd(temp int, gamma float32) tea.Cmd {
 	return func() tea.Msg {
 		if err := SetTemperature(temp); err != nil {
 			return appliedMsg{"temperature: " + err.Error(), true}
 		}
-		if err := SetGamma(gamma); err != nil {
+		if err := SetGamma(int(gamma * 100)); err != nil {
 			return appliedMsg{"gamma: " + err.Error(), true}
 		}
-		return appliedMsg{fmt.Sprintf("applied %dK / %d%%", temp, gamma), false}
-	}
-}
-
-func resetCmd(profile hyprsunsetProfile) tea.Cmd {
-	return func() tea.Msg {
-		if err := Reset(); err != nil {
-			return appliedMsg{"reset: " + err.Error(), true}
-		}
-		return appliedMsg{"reset to config profile: " + profile.statusText(), false}
+		return appliedMsg{fmt.Sprintf("applied %dK / %.1f", temp, gamma), false}
 	}
 }
 
@@ -111,9 +116,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "T", "right":
 			m.temp = clamp(m.temp+tempStep, tempMin, tempMax)
 		case "g", "down":
-			m.gamma = clamp(m.gamma-gammaStep, gammaMin, gammaMax)
+			m.gamma = clampFloat(m.gamma-gammaStep, gammaMin, gammaMax)
 		case "G", "up":
-			m.gamma = clamp(m.gamma+gammaStep, gammaMin, gammaMax)
+			m.gamma = clampFloat(m.gamma+gammaStep, gammaMin, gammaMax)
 		case "1", "2", "3":
 			p := presets[msg.String()[0]-'1']
 			m.temp, m.gamma = p.temp, p.gamma
@@ -121,13 +126,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "a", "enter":
 			return m, applyCmd(m.temp, m.gamma)
 		case "i":
-			profile, err := currentHyprsunsetProfile(time.Now())
+			profile, err := loadHyprsunsetProfile(time.Now())
 			if err != nil {
 				m.status, m.statusErr = "config: "+err.Error(), true
 				return m, nil
 			}
-			m.temp, m.gamma = profile.uiTemperature(), profile.gamma
-			return m, resetCmd(profile)
+			m.temp, m.gamma = profile.temperature, profile.gamma
+			// Missing thing?
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
 		}
@@ -138,7 +143,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 	s := titleStyle.Render("hyprsunset-controller") + "\n\n"
 	s += fmt.Sprintf("  Temperature: %s K\n", valStyle.Render(strconv.Itoa(m.temp)))
-	s += fmt.Sprintf("  Gamma:       %s %%\n\n", valStyle.Render(strconv.Itoa(m.gamma)))
+	s += fmt.Sprintf("  Gamma:       %s\n\n", valStyle.Render(fmt.Sprintf("%.1f", m.gamma)))
 	s += dimStyle.Render("  [t/T or ←/→] temp   [g/G or ↓/↑] gamma") + "\n"
 	s += dimStyle.Render("  [1] Day  [2] Evening  [3] Night") + "\n"
 	s += dimStyle.Render("  [a/enter] apply   [i] reset to profile   [q] quit") + "\n"

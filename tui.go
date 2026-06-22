@@ -129,17 +129,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.status, m.statusErr = "preset: "+p.name, false
 		case "a", "enter":
 			return m, applyCmd(m.temp, m.gamma)
-		case "i":
-			profile, err := loadHyprsunsetProfile(time.Now())
-			if err != nil {
-				m.status, m.statusErr = "config: "+err.Error(), true
-				return m, nil
-			}
-			m.temp = profile.temperature
-			m.gamma = profile.gamma
-			m.time = profile.time
-			m.identity = profile.identity
-			// Missing thing?
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
 		}
@@ -181,7 +170,7 @@ func (m model) View() string {
 	}
 	fmt.Fprintf(&b, "\n%s\n", dimStyle.Render("[↑/↓] select   [←/→] adjust"))
 	fmt.Fprintf(&b, "%s\n", dimStyle.Render("[1] Day  [2] Evening  [3] Night"))
-	fmt.Fprintf(&b, "%s\n", dimStyle.Render("[a/enter] apply   [i] reset to profile   [q] quit"))
+	fmt.Fprintf(&b, "%s\n", dimStyle.Render("[a/enter] apply   [q] quit"))
 	if m.status != "" {
 		style := dimStyle
 		if m.statusErr {

@@ -18,6 +18,14 @@ type hyprsunsetProfile struct {
 	identity    bool
 }
 
+func defaultHyprsunsetProfile() hyprsunsetProfile {
+	return hyprsunsetProfile{
+		time:        "00:00",
+		temperature: neutralTemp,
+		gamma:       neutralGamma,
+	}
+}
+
 func loadHyprsunsetProfile(now time.Time) (hyprsunsetProfile, error) {
 	// Gets the configuration path
 	configPath, err := os.UserConfigDir()
@@ -39,7 +47,7 @@ func loadHyprsunsetProfile(now time.Time) (hyprsunsetProfile, error) {
 }
 
 func parseContent(content []byte) (hyprsunsetProfile, error) {
-	var profile hyprsunsetProfile
+	profile := defaultHyprsunsetProfile()
 	inProfile := false
 
 	for _, rawLine := range strings.Split(string(content), "\n") {
@@ -47,6 +55,7 @@ func parseContent(content []byte) (hyprsunsetProfile, error) {
 
 		switch {
 		case line == "profile {":
+			profile = defaultHyprsunsetProfile()
 			inProfile = true
 		case line == "}":
 			inProfile = false
@@ -69,7 +78,7 @@ func parseContent(content []byte) (hyprsunsetProfile, error) {
 
 				profile.temperature = temperature
 			case "gamma":
-				gamma, err := strconv.ParseFloat(value, 64)
+				gamma, err := strconv.ParseFloat(value, 32)
 				if err != nil {
 					return profile, fmt.Errorf("invalid gamma %q", value)
 				}

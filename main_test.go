@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestClamp(t *testing.T) {
@@ -31,15 +30,48 @@ func TestPresetKeysMapToIndex(t *testing.T) {
 	}
 }
 
-func TestCurrentHyprsunsetProfileFromConfig(t *testing.T) {
-	config := `
-max-gamma = 150
+func TestViewShowsProfileFields(t *testing.T) {
+	view := model{
+		temp:     6000,
+		gamma:    1.0,
+		time:     "07:00",
+		identity: true,
+	}.View()
 
-profile {
-    time = 7:30
-    identity = true
+	if !strings.Contains(view, "Time:") || !strings.Contains(view, "07:00") {
+		t.Fatalf("View() = %q, want profile time", view)
+	}
+	if !strings.Contains(view, "Identity:") || !strings.Contains(view, "true") {
+		t.Fatalf("View() = %q, want identity", view)
+	}
 }
 
+func TestParseContent(t *testing.T) {
+	t.Run("identity profile keeps default visible values", func(t *testing.T) {
+		config := `
+profile {
+    time = 07:00
+    identity = true
+}
+`
+
+		profile, err := parseContent([]byte(config))
+		if err != nil {
+			t.Fatalf("parseContent() error = %v", err)
+		}
+		if profile.time != "07:00" {
+			t.Fatalf("profile.time = %q, want 07:00", profile.time)
+		}
+		if !profile.identity {
+			t.Fatal("profile.identity = false, want true")
+		}
+		if profile.temperature != neutralTemp || profile.gamma != neutralGamma {
+			t.Fatalf("profile values = %dK / %.1f, want %dK / %.1f", profile.temperature, profile.gamma, neutralTemp, neutralGamma)
+		}
+	})
+
+	t.Run("parses temperature and gamma", func(t *testing.T) {
+		config := `
 profile {
     time = 21:00
     temperature = 5500
@@ -47,114 +79,46 @@ profile {
 }
 `
 
-	t.Run("uses latest profile before current time", func(t *testing.T) {
-		profile, err := currentHyprsunsetProfileFromConfig(config, timeAt(20, 0))
+		profile, err := parseContent([]byte(config))
 		if err != nil {
-			t.Fatalf("currentHyprsunsetProfileFromConfig() error = %v", err)
+			t.Fatalf("parseContent() error = %v", err)
 		}
-		if !profile.identity {
-			t.Fatal("profile.identity = false, want true")
-		}
-		if profile.uiTemperature() != neutralTemp || profile.gamma != neutralGamma {
-			t.Fatalf("profile values = %dK / %d%%, want %dK / %d%%", profile.uiTemperature(), profile.gamma, neutralTemp, neutralGamma)
+		if profile.time != "21:00" || profile.temperature != 5500 || profile.gamma != 0.8 || profile.identity {
+			t.Fatalf("profile = %+v, want 21:00 / 5500K / 0.8 / identity false", profile)
 		}
 	})
 
-	t.Run("uses night profile", func(t *testing.T) {
-		profile, err := currentHyprsunsetProfileFromConfig(config, timeAt(21, 30))
-		if err != nil {
-			t.Fatalf("currentHyprsunsetProfileFromConfig() error = %v", err)
-		}
-		if profile.identity {
-			t.Fatal("profile.identity = true, want false")
-		}
-		if profile.uiTemperature() != 5500 || profile.gamma != 80 {
-			t.Fatalf("profile values = %dK / %d%%, want 5500K / 80%%", profile.uiTemperature(), profile.gamma)
-		}
-	})
-
-	t.Run("wraps to previous day's profile", func(t *testing.T) {
-		profile, err := currentHyprsunsetProfileFromConfig(config, timeAt(6, 0))
-		if err != nil {
-			t.Fatalf("currentHyprsunsetProfileFromConfig() error = %v", err)
-		}
-		if profile.uiTemperature() != 5500 || profile.gamma != 80 {
-			t.Fatalf("profile values = %dK / %d%%, want 5500K / 80%%", profile.uiTemperature(), profile.gamma)
-		}
-	})
+	t.Run("starts each profile from defaults", func(t *testing.T) {
+		config := `
+profile {
+    time = 07:00
+    gamma = 0.5
 }
 
-func TestCurrentHyprsunsetProfileFromFile(t *testing.T) {
-	t.Run("missing file uses defaults", func(t *testing.T) {
-		profile, err := currentHyprsunsetProfileFromFile(filepath.Join(t.TempDir(), "hyprsunset.conf"), timeAt(12, 0))
-		if err != nil {
-			t.Fatalf("currentHyprsunsetProfileFromFile() error = %v", err)
-		}
-		if profile.uiTemperature() != neutralTemp || profile.gamma != neutralGamma {
-			t.Fatalf("profile values = %dK / %d%%, want %dK / %d%%", profile.uiTemperature(), profile.gamma, neutralTemp, neutralGamma)
-		}
-	})
-
-	t.Run("malformed file returns error", func(t *testing.T) {
-		configPath := filepath.Join(t.TempDir(), "hyprsunset.conf")
-		if err := os.WriteFile(configPath, []byte("profile {\n  time = nope\n}\n"), 0o644); err != nil {
-			t.Fatalf("write config: %v", err)
-		}
-
-		if _, err := currentHyprsunsetProfileFromFile(configPath, timeAt(12, 0)); err == nil {
-			t.Fatal("currentHyprsunsetProfileFromFile() error = nil, want malformed config error")
-		}
-	})
+profile {
+    time = 21:00
+    temperature = 4000
 }
+`
 
-func TestResetCmd(t *testing.T) {
-	t.Run("runs reset command", func(t *testing.T) {
-		binDir := t.TempDir()
-		argsFile := filepath.Join(t.TempDir(), "hyprctl-args")
-		t.Setenv("PATH", binDir)
-		t.Setenv("HYPRCTL_ARGS_FILE", argsFile)
-
-		writeExecutable(t, binDir, "hyprctl", "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HYPRCTL_ARGS_FILE\"\n")
-
-		profile := hyprsunsetProfile{temperature: 5500, gamma: 80}
-		msg := resetCmd(profile)()
-		applied, ok := msg.(appliedMsg)
-		if !ok {
-			t.Fatalf("resetCmd() message = %T, want appliedMsg", msg)
-		}
-		if applied.isErr {
-			t.Fatalf("resetCmd() isErr = true, want false: %s", applied.text)
-		}
-		if applied.text != "reset to config profile: 5500K / 80%" {
-			t.Fatalf("resetCmd() text = %q, want config profile status", applied.text)
-		}
-
-		gotBytes, err := os.ReadFile(argsFile)
+		profile, err := parseContent([]byte(config))
 		if err != nil {
-			t.Fatalf("read hyprctl args: %v", err)
+			t.Fatalf("parseContent() error = %v", err)
 		}
-
-		want := "hyprsunset\nreset\n"
-		if got := string(gotBytes); got != want {
-			t.Fatalf("hyprctl args = %q, want %q", got, want)
+		if profile.time != "21:00" || profile.temperature != 4000 || profile.gamma != neutralGamma {
+			t.Fatalf("profile = %+v, want 21:00 / 4000K / %.1f", profile, neutralGamma)
 		}
 	})
 
-	t.Run("returns command error", func(t *testing.T) {
-		binDir := t.TempDir()
-		writeExecutable(t, binDir, "hyprctl", "#!/bin/sh\nexit 42\n")
-		t.Setenv("PATH", binDir)
+	t.Run("returns invalid gamma error", func(t *testing.T) {
+		config := `
+profile {
+    gamma = nope
+}
+`
 
-		msg := resetCmd(defaultHyprsunsetProfile())()
-		applied, ok := msg.(appliedMsg)
-		if !ok {
-			t.Fatalf("resetCmd() message = %T, want appliedMsg", msg)
-		}
-		if !applied.isErr {
-			t.Fatalf("resetCmd() isErr = false, want true")
-		}
-		if !strings.Contains(applied.text, "reset:") {
-			t.Fatalf("resetCmd() text = %q, want reset error", applied.text)
+		if _, err := parseContent([]byte(config)); err == nil {
+			t.Fatal("parseContent() error = nil, want invalid gamma error")
 		}
 	})
 }
@@ -254,8 +218,4 @@ func writeExecutable(t *testing.T, dir, name, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
 		t.Fatalf("write executable %s: %v", name, err)
 	}
-}
-
-func timeAt(hour, minute int) time.Time {
-	return time.Date(2026, 6, 21, hour, minute, 0, 0, time.Local)
 }

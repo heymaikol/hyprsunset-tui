@@ -61,13 +61,20 @@ var (
 type model struct {
 	temp      int
 	gamma     float32
+	time      string
+	identity  bool
 	status    string
 	statusErr bool
 }
 
 func initialModel() model {
 	profile, err := loadHyprsunsetProfile(time.Now())
-	m := model{temp: profile.temperature, gamma: profile.gamma}
+	m := model{
+		temp:     profile.temperature,
+		gamma:    profile.gamma,
+		time:     profile.time,
+		identity: profile.identity,
+	}
 	if err != nil {
 		m.status = "config: " + err.Error()
 		m.statusErr = true
@@ -121,7 +128,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.status, m.statusErr = "config: "+err.Error(), true
 				return m, nil
 			}
-			m.temp, m.gamma = profile.temperature, profile.gamma
+			m.temp = profile.temperature
+			m.gamma = profile.gamma
+			m.time = profile.time
+			m.identity = profile.identity
 			// Missing thing?
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
@@ -132,11 +142,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	s := titleStyle.Render("hyprsunset-controller") + "\n\n"
-	s += fmt.Sprintf("  Temperature: %s K\n", valStyle.Render(strconv.Itoa(m.temp)))
-	s += fmt.Sprintf("  Gamma:       %s\n\n", valStyle.Render(fmt.Sprintf("%.1f", m.gamma)))
-	s += dimStyle.Render("  [t/T or ←/→] temp   [g/G or ↓/↑] gamma") + "\n"
-	s += dimStyle.Render("  [1] Day  [2] Evening  [3] Night") + "\n"
-	s += dimStyle.Render("  [a/enter] apply   [i] reset to profile   [q] quit") + "\n"
+	s += fmt.Sprintf("Time: %s\n", valStyle.Render(m.time))
+	s += fmt.Sprintf("Identity: %s\n", valStyle.Render(strconv.FormatBool(m.identity)))
+	s += fmt.Sprintf("Temperature: %s K\n", valStyle.Render(strconv.Itoa(m.temp)))
+	s += fmt.Sprintf("Gamma: %s\n\n", valStyle.Render(fmt.Sprintf("%.1f", m.gamma)))
+	s += dimStyle.Render("[t/T or ←/→] temp   [g/G or ↓/↑] gamma") + "\n"
+	s += dimStyle.Render("[1] Day  [2] Evening  [3] Night") + "\n"
+	s += dimStyle.Render("[a/enter] apply   [i] reset to profile   [q] quit") + "\n"
 	if m.status != "" {
 		style := dimStyle
 		if m.statusErr {

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -115,13 +116,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor--
 			}
 		case "down":
-			if m.cursor < 3 { // ponytail: 4 fields (time, identity, temp, gamma); raise bound to add more
+			if m.cursor < len(fields)-1 {
 				m.cursor++
 			}
 		case "left":
-			m.adjust(-1)
+			fields[m.cursor].adjust(&m, -1)
 		case "right":
-			m.adjust(1)
+			fields[m.cursor].adjust(&m, 1)
 		case "1", "2", "3":
 			p := presets[msg.String()[0]-'1']
 			m.temp, m.gamma = p.temp, p.gamma
@@ -146,18 +147,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// adjust changes the field under the cursor. dir is -1 (left) or +1 (right).
-func (m *model) adjust(dir int) {
-	switch m.cursor {
-	case 0:
-		m.time = adjustTime(m.time, dir*timeStep)
-	case 1:
-		m.identity = !m.identity // bool: either arrow toggles
-	case 2:
-		m.temp = clamp(m.temp+dir*tempStep, tempMin, tempMax)
-	case 3:
-		m.gamma = clampFloat(m.gamma+float32(dir)*gammaStep, gammaMin, gammaMax)
-	}
+// field is one editable row. render shows the value; adjust changes it by dir (-1/+1).
+type field struct {
+	label  string
+	render func(m model) string
+	adjust func(m *model, dir int)
+}
+
+var fields = []field{
+	{"Time", func(m model) string { return m.time }, func(m *model, d int) { m.time = adjustTime(m.time, d*timeStep) }},
+	{"Identity", func(m model) string { return strconv.FormatBool(m.identity) }, func(m *model, d int) { m.identity = !m.identity }},
+	{"Temperature", func(m model) string { return strconv.Itoa(m.temp) + " K" }, func(m *model, d int) { m.temp = clamp(m.temp+d*tempStep, tempMin, tempMax) }},
+	{"Gamma", func(m model) string { return fmt.Sprintf("%.1f", m.gamma) }, func(m *model, d int) { m.gamma = clampFloat(m.gamma+float32(d)*gammaStep, gammaMin, gammaMax) }},
 }
 
 // adjustTime shifts "H:MM" by deltaMin, wrapping within a day.
@@ -169,26 +170,24 @@ func adjustTime(s string, deltaMin int) string {
 }
 
 func (m model) View() string {
-	s := titleStyle.Render("hyprsunset-controller") + "\n\n"
-	cur := func(i int) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s\n\n", titleStyle.Render("hyprsunset-controller"))
+	for i, f := range fields {
+		prefix := "  "
 		if m.cursor == i {
-			return "> "
+			prefix = "> "
 		}
-		return "  "
+		fmt.Fprintf(&b, "%s%s: %s\n", prefix, f.label, valStyle.Render(f.render(m)))
 	}
-	s += fmt.Sprintf("%sTime: %s\n", cur(0), valStyle.Render(m.time))
-	s += fmt.Sprintf("%sIdentity: %s\n", cur(1), valStyle.Render(strconv.FormatBool(m.identity)))
-	s += fmt.Sprintf("%sTemperature: %s K\n", cur(2), valStyle.Render(strconv.Itoa(m.temp)))
-	s += fmt.Sprintf("%sGamma: %s\n\n", cur(3), valStyle.Render(fmt.Sprintf("%.1f", m.gamma)))
-	s += dimStyle.Render("[↑/↓] select   [←/→] adjust") + "\n"
-	s += dimStyle.Render("[1] Day  [2] Evening  [3] Night") + "\n"
-	s += dimStyle.Render("[a/enter] apply   [i] reset to profile   [q] quit") + "\n"
+	fmt.Fprintf(&b, "\n%s\n", dimStyle.Render("[↑/↓] select   [←/→] adjust"))
+	fmt.Fprintf(&b, "%s\n", dimStyle.Render("[1] Day  [2] Evening  [3] Night"))
+	fmt.Fprintf(&b, "%s\n", dimStyle.Render("[a/enter] apply   [i] reset to profile   [q] quit"))
 	if m.status != "" {
 		style := dimStyle
 		if m.statusErr {
 			style = errStyle
 		}
-		s += "\n" + style.Render("  > "+m.status) + "\n"
+		fmt.Fprintf(&b, "\n%s\n", style.Render("  > "+m.status))
 	}
-	return s
+	return b.String()
 }

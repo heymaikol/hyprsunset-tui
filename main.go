@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -137,7 +138,29 @@ func (m model) View() string {
 	return s
 }
 
+func CheckDependencies() error {
+	// Check if hyprsunset is in PATH
+	if _, err := exec.LookPath("hyprsunset"); err != nil {
+		return fmt.Errorf("hyprsunset is not found in PATH (Not installed?)")
+	}
+
+	// Check if hyprctl is in PATH
+	// Is it possible to install hyprsunset without hyprland?
+	if _, err := exec.LookPath("hyprctl"); err != nil {
+		return fmt.Errorf("hyprctl is not found in PATH (Not installed?)")
+	}
+
+	return nil
+}
+
 func main() {
+	// Check if Dependencies are installed
+	if err := CheckDependencies(); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
+
+	// Create the TUI
 	if _, err := tea.NewProgram(initialModel(), tea.WithAltScreen()).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)

@@ -255,7 +255,7 @@ func (m model) View() string {
 	common := renderBox("Simple", commonBody, m.focusedPanel == commonPanel)
 	advanced := renderBox("Advanced", strings.TrimRight(adv.String(), "\n"), m.focusedPanel == advancedPanel)
 
-	// Profile box: reuse field renders against a model holding the on-disk values.
+	// Configuration box: reuse field renders against a model holding the on-disk values.
 	old := m
 	old.time, old.identity = m.saved.time, m.saved.identity
 	old.temp, old.gamma = m.saved.temperature, m.saved.gamma
@@ -268,7 +268,7 @@ func (m model) View() string {
 		}
 		fmt.Fprintf(&prof, "%s: %s\n", f.label, val)
 	}
-	profile := renderBox("Profile", strings.TrimRight(prof.String(), "\n"), false)
+	profile := renderBox("Configuration", strings.TrimRight(prof.String(), "\n"), false)
 
 	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, common, "  ", advanced, "  ", profile))
 	b.WriteByte('\n')

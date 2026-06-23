@@ -81,7 +81,7 @@ func TestClamp(t *testing.T) {
 	}
 }
 
-func TestViewShowsProfileFields(t *testing.T) {
+func TestViewShowsConfigurationFields(t *testing.T) {
 	view := model{
 		temp:     6000,
 		gamma:    1.0,
@@ -90,8 +90,11 @@ func TestViewShowsProfileFields(t *testing.T) {
 		enabled:  true,
 	}.View()
 
+	if !strings.Contains(view, "Configuration") {
+		t.Fatalf("View() = %q, want configuration title", view)
+	}
 	if !strings.Contains(view, "Time:") || !strings.Contains(view, "07:00") {
-		t.Fatalf("View() = %q, want profile time", view)
+		t.Fatalf("View() = %q, want configuration time", view)
 	}
 	if !strings.Contains(view, "Identity:") || !strings.Contains(view, "true") {
 		t.Fatalf("View() = %q, want identity", view)

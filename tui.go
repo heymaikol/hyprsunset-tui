@@ -180,23 +180,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor++
 			}
 		case "left":
-			// In Simple panel, left disables hyprsunset; in Advanced it decrements the field
+			// Arrows only adjust fields in the Advanced panel
 			if m.focusedPanel != advancedPanel {
-				if m.focusedPanel == commonPanel && m.enabled {
-					return m, setEnabledCmd(false, m.temp, m.gamma)
-				}
 				break
 			}
 			fields[m.cursor].adjust(&m, -1)
 		case "right":
-			// In Simple panel, right enables hyprsunset; in Advanced it increments the field
 			if m.focusedPanel != advancedPanel {
-				if m.focusedPanel == commonPanel && !m.enabled {
-					return m, setEnabledCmd(true, m.temp, m.gamma)
-				}
 				break
 			}
 			fields[m.cursor].adjust(&m, 1)
+		case " ":
+			if m.focusedPanel == commonPanel {
+				return m, setEnabledCmd(!m.enabled, m.temp, m.gamma)
+			}
 		case "s":
 			// Persist the current values to the profile file
 			return m, saveConfigCmd(hyprsunsetProfile{

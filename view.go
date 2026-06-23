@@ -102,8 +102,12 @@ func (m model) View() string {
 	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", profile))
 	b.WriteByte('\n')
 
-	// Two-line key hint footer
-	fmt.Fprintf(&b, "\n%s\n", dimStyle.Render("[tab] panel   [↑/↓] select   [←/→] adjust"))
+	// Two-line key hint footer; first line depends on the focused panel
+	directions := "[tab] panel   [space] toggle"
+	if m.focusedPanel == advancedPanel {
+		directions = "[tab] panel   [↑/↓] select   [←/→] adjust"
+	}
+	fmt.Fprintf(&b, "\n%s\n", dimStyle.Render(directions))
 	fmt.Fprintf(&b, "%s\n", dimStyle.Render("[s] save   [q] quit"))
 	// Status line, red on error
 	if m.status != "" {

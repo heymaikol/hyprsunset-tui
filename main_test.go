@@ -116,47 +116,49 @@ func TestViewShowsConfigurationFields(t *testing.T) {
 	}
 }
 
-func TestRightArrowEnablesHyprsunsetService(t *testing.T) {
+func TestSpaceTogglesSimpleCheckbox(t *testing.T) {
 	binDir := t.TempDir()
 	argsFile := filepath.Join(t.TempDir(), "uwsm-args")
-	hyprctlArgs := filepath.Join(t.TempDir(), "hyprctl-args")
+	pkillArgs := filepath.Join(t.TempDir(), "pkill-args")
 	t.Setenv("PATH", binDir)
 	t.Setenv("UWSM_ARGS_FILE", argsFile)
-	t.Setenv("HYPRCTL_ARGS_FILE", hyprctlArgs)
+	t.Setenv("PKILL_ARGS_FILE", pkillArgs)
 	writeExecutable(t, binDir, "uwsm", "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$UWSM_ARGS_FILE\"\nexit 0\n")
-	// Enable also pushes temp/gamma via hyprctl; stub it so the push succeeds.
-	writeExecutable(t, binDir, "hyprctl", "#!/bin/sh\nprintf '%s\\n' \"$@\" >> \"$HYPRCTL_ARGS_FILE\"\nexit 0\n")
+	writeExecutable(t, binDir, "hyprctl", "#!/bin/sh\nexit 0\n")
+	writeExecutable(t, binDir, "pkill", "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$PKILL_ARGS_FILE\"\nexit 0\n")
 
 	m := model{focusedPanel: commonPanel, temp: 4500, gamma: 0.8}
-	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}})
 	if cmd == nil {
-		t.Fatal("Update(right) cmd = nil, want uwsm command")
+		t.Fatal("Update(space) cmd = nil, want toggle command")
 	}
 
 	msg := cmd()
 	next, _ = next.(model).Update(msg)
 	got := next.(model)
 	if !got.enabled {
-		t.Fatal("enabled = false, want true")
+		t.Fatal("enabled = false after space, want true")
 	}
 
-	gotBytes, err := os.ReadFile(argsFile)
-	if err != nil {
-		t.Fatalf("read uwsm args: %v", err)
+	next, cmd = got.Update(tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}})
+	if cmd == nil {
+		t.Fatal("Update(space) cmd = nil while enabled, want toggle command")
 	}
-	want := "app\n-s\nb\n-t\nservice\n--\nhyprsunset\n"
+
+	msg = cmd()
+	next, _ = next.(model).Update(msg)
+	got = next.(model)
+	if got.enabled {
+		t.Fatal("enabled = true after second space, want false")
+	}
+
+	gotBytes, err := os.ReadFile(pkillArgs)
+	if err != nil {
+		t.Fatalf("read pkill args: %v", err)
+	}
+	want := "-x\nhyprsunset\n"
 	if string(gotBytes) != want {
-		t.Fatalf("uwsm args = %q, want %q", gotBytes, want)
-	}
-
-	// Enabling must also push the configured temp/gamma, no separate apply.
-	pushed, err := os.ReadFile(hyprctlArgs)
-	if err != nil {
-		t.Fatalf("read hyprctl args: %v", err)
-	}
-	wantPush := "hyprsunset\ntemperature\n4500\nhyprsunset\ngamma\n80\n"
-	if string(pushed) != wantPush {
-		t.Fatalf("hyprctl args = %q, want %q", pushed, wantPush)
+		t.Fatalf("pkill args = %q, want %q", gotBytes, want)
 	}
 }
 

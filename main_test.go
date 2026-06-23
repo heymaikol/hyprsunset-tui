@@ -362,8 +362,6 @@ func TestCheckDependencies(t *testing.T) {
 		writeExecutable(t, binDir, "hyprsunset", "#!/bin/sh\nexit 0\n")
 		writeExecutable(t, binDir, "hyprctl", "#!/bin/sh\nexit 0\n")
 		writeExecutable(t, binDir, "uwsm", "#!/bin/sh\nexit 0\n")
-		writeExecutable(t, binDir, "pgrep", "#!/bin/sh\nexit 0\n")
-		writeExecutable(t, binDir, "pkill", "#!/bin/sh\nexit 0\n")
 		t.Setenv("PATH", binDir)
 
 		if err := CheckDependencies(); err != nil {

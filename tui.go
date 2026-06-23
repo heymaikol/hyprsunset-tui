@@ -21,18 +21,6 @@ const (
 	neutralGamma     float32 = 1.0
 )
 
-type preset struct {
-	name  string
-	temp  int
-	gamma float32
-}
-
-var presets = []preset{
-	{"Day", 6000, 1.0},
-	{"Evening", 4000, 0.9},
-	{"Night", 3000, 0.8},
-}
-
 func clamp(v, lo, hi int) int {
 	if v < lo {
 		return lo
@@ -123,10 +111,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			fields[m.cursor].adjust(&m, -1)
 		case "right":
 			fields[m.cursor].adjust(&m, 1)
-		case "1", "2", "3":
-			p := presets[msg.String()[0]-'1']
-			m.temp, m.gamma = p.temp, p.gamma
-			m.status, m.statusErr = "preset: "+p.name, false
 		case "a", "enter":
 			return m, applyCmd(m.temp, m.gamma)
 		case "q", "ctrl+c", "esc":
@@ -169,7 +153,6 @@ func (m model) View() string {
 		fmt.Fprintf(&b, "%s%s: %s\n", prefix, f.label, valStyle.Render(f.render(m)))
 	}
 	fmt.Fprintf(&b, "\n%s\n", dimStyle.Render("[↑/↓] select   [←/→] adjust"))
-	fmt.Fprintf(&b, "%s\n", dimStyle.Render("[1] Day  [2] Evening  [3] Night"))
 	fmt.Fprintf(&b, "%s\n", dimStyle.Render("[a/enter] apply   [q] quit"))
 	if m.status != "" {
 		style := dimStyle

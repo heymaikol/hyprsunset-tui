@@ -10,7 +10,6 @@ import (
 // hyprsunset-controller — Bubble Tea TUI scaffold.
 //
 // Extend here:
-//   - presets:    add entries to the presets slice
 //   - keys:       add cases in Update's tea.KeyMsg switch, document them in View
 //   - IPC:        add hyprsunset commands in hyprsunset.go, call them from a tea.Cmd
 //   - persistence: load before tea.NewProgram, save after Run returns

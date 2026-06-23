@@ -52,17 +52,6 @@ func TestClamp(t *testing.T) {
 	}
 }
 
-func TestPresetKeysMapToIndex(t *testing.T) {
-	for i, key := range []byte{'1', '2', '3'} {
-		if int(key-'1') != i {
-			t.Fatalf("preset key %c maps to wrong index", key)
-		}
-	}
-	if presets[0].name != "Day" || presets[2].temp != 3000 {
-		t.Fatal("preset table wrong")
-	}
-}
-
 func TestViewShowsProfileFields(t *testing.T) {
 	view := model{
 		temp:     6000,

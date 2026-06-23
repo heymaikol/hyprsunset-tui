@@ -251,9 +251,10 @@ func (m model) View() string {
 	if m.focusedPanel != commonPanel {
 		commonPrefix = "  "
 	}
-	commonBody := fmt.Sprintf("%s%s Enabled\n%s", commonPrefix, checkbox, strings.Repeat("\n", len(fields)-2))
+	commonBody := fmt.Sprintf("%s%s Enabled", commonPrefix, checkbox)
 	common := renderBox("Simple", commonBody, m.focusedPanel == commonPanel)
 	advanced := renderBox("Advanced", strings.TrimRight(adv.String(), "\n"), m.focusedPanel == advancedPanel)
+	left := lipgloss.JoinVertical(lipgloss.Left, common, advanced)
 
 	// Configuration box: reuse field renders against a model holding the on-disk values.
 	old := m
@@ -268,9 +269,15 @@ func (m model) View() string {
 		}
 		fmt.Fprintf(&prof, "%s: %s\n", f.label, val)
 	}
-	profile := renderBox("Configuration", strings.TrimRight(prof.String(), "\n"), false)
+	// Pad Configuration body so its box matches the stacked-left column height.
+	// Box adds 2 border rows, so body needs leftHeight-2 lines.
+	profBody := strings.TrimRight(prof.String(), "\n")
+	if pad := lipgloss.Height(left) - 2 - lipgloss.Height(profBody); pad > 0 {
+		profBody += strings.Repeat("\n", pad)
+	}
+	profile := renderBox("Configuration", profBody, false)
 
-	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, common, "  ", advanced, "  ", profile))
+	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", profile))
 	b.WriteByte('\n')
 
 	fmt.Fprintf(&b, "\n%s\n", dimStyle.Render("[tab] panel   [↑/↓] select   [←/→] adjust"))

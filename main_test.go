@@ -69,6 +69,18 @@ func TestTabSwitchesBetweenPanels(t *testing.T) {
 	}
 }
 
+func TestInitialModelStartsOnSimplePanel(t *testing.T) {
+	binDir := t.TempDir()
+	t.Setenv("PATH", binDir)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	writeExecutable(t, binDir, "pgrep", "#!/bin/sh\nexit 1\n")
+
+	m := initialModel()
+	if m.focusedPanel != commonPanel {
+		t.Fatalf("focusedPanel = %v, want commonPanel", m.focusedPanel)
+	}
+}
+
 func TestClamp(t *testing.T) {
 	if clamp(500, tempMin, tempMax) != tempMin {
 		t.Fatal("below min not clamped")

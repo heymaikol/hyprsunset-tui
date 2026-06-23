@@ -119,11 +119,15 @@ func TestViewShowsConfigurationFields(t *testing.T) {
 func TestRightArrowEnablesHyprsunsetService(t *testing.T) {
 	binDir := t.TempDir()
 	argsFile := filepath.Join(t.TempDir(), "uwsm-args")
+	hyprctlArgs := filepath.Join(t.TempDir(), "hyprctl-args")
 	t.Setenv("PATH", binDir)
 	t.Setenv("UWSM_ARGS_FILE", argsFile)
+	t.Setenv("HYPRCTL_ARGS_FILE", hyprctlArgs)
 	writeExecutable(t, binDir, "uwsm", "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$UWSM_ARGS_FILE\"\nexit 0\n")
+	// Enable also pushes temp/gamma via hyprctl; stub it so the push succeeds.
+	writeExecutable(t, binDir, "hyprctl", "#!/bin/sh\nprintf '%s\\n' \"$@\" >> \"$HYPRCTL_ARGS_FILE\"\nexit 0\n")
 
-	m := model{focusedPanel: commonPanel}
+	m := model{focusedPanel: commonPanel, temp: 4500, gamma: 0.8}
 	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRight})
 	if cmd == nil {
 		t.Fatal("Update(right) cmd = nil, want uwsm command")
@@ -144,36 +148,15 @@ func TestRightArrowEnablesHyprsunsetService(t *testing.T) {
 	if string(gotBytes) != want {
 		t.Fatalf("uwsm args = %q, want %q", gotBytes, want)
 	}
-}
 
-func TestEnterAppliesAndADoesNot(t *testing.T) {
-	binDir := t.TempDir()
-	argsFile := filepath.Join(t.TempDir(), "hyprctl-args")
-	t.Setenv("PATH", binDir)
-	t.Setenv("HYPRCTL_ARGS_FILE", argsFile)
-	writeExecutable(t, binDir, "hyprctl", "#!/bin/sh\nprintf '%s\\n' \"$@\" >> \"$HYPRCTL_ARGS_FILE\"\nexit 0\n")
-
-	m := model{temp: 4500, gamma: 0.8}
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
-	if cmd != nil {
-		t.Fatal("Update(a) cmd != nil, want nil")
-	}
-
-	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd == nil {
-		t.Fatal("Update(enter) cmd = nil, want hyprctl command")
-	}
-	if msg := cmd(); msg != (statusMsg{text: "applied 4500K / 0.8", isErr: false}) {
-		t.Fatalf("enter command msg = %#v, want successful statusMsg", msg)
-	}
-
-	gotBytes, err := os.ReadFile(argsFile)
+	// Enabling must also push the configured temp/gamma, no separate apply.
+	pushed, err := os.ReadFile(hyprctlArgs)
 	if err != nil {
 		t.Fatalf("read hyprctl args: %v", err)
 	}
-	want := "hyprsunset\ntemperature\n4500\nhyprsunset\ngamma\n80\n"
-	if string(gotBytes) != want {
-		t.Fatalf("hyprctl args = %q, want %q", gotBytes, want)
+	wantPush := "hyprsunset\ntemperature\n4500\nhyprsunset\ngamma\n80\n"
+	if string(pushed) != wantPush {
+		t.Fatalf("hyprctl args = %q, want %q", pushed, wantPush)
 	}
 }
 

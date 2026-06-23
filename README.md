@@ -15,7 +15,7 @@ go build -o hyprsunset-controller .
 
 Keys: `tab` switch panel · `space` toggle enabled · `←/→` adjust · `↓/↑` select · `enter` apply · `s` save · `q` quit.
 
-The Enabled checkbox controls `hyprsunset.service` through `systemctl --user`. Applying temperature and gamma still uses `hyprctl hyprsunset ...`, so the service must be active for changes to apply.
+The Enabled checkbox launches `hyprsunset` through `uwsm app` and stops it by terminating the `hyprsunset` process. Applying temperature and gamma still uses `hyprctl hyprsunset ...`, so `hyprsunset` must be running for changes to apply.
 
 ## Layout
 

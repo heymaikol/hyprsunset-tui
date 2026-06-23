@@ -11,7 +11,7 @@ import (
 // `hyprctl hyprsunset ...`; swap the body of hyprctl() for a direct socket
 // client if you outgrow that. Add new commands here as typed funcs.
 
-const hyprsunsetService = "hyprsunset.service"
+const hyprsunsetProcess = "hyprsunset"
 
 func hyprctl(args ...string) error {
 	return exec.Command("hyprctl", append([]string{"hyprsunset"}, args...)...).Run()
@@ -20,32 +20,51 @@ func hyprctl(args ...string) error {
 func SetTemperature(kelvin int) error { return hyprctl("temperature", strconv.Itoa(kelvin)) }
 func SetGamma(percent int) error      { return hyprctl("gamma", strconv.Itoa(percent)) }
 
-func systemctl(args ...string) ([]byte, error) {
-	return exec.Command("systemctl", append([]string{"--user"}, args...)...).CombinedOutput()
+func startHyprsunset() ([]byte, error) {
+	return exec.Command(
+		"uwsm",
+		"app",
+		"-s", "b",
+		"-t", "service",
+		"-u", "hyprsunset.service",
+		"--",
+		"hyprsunset",
+	).CombinedOutput()
 }
 
 func IsHyprsunsetRunning() (bool, error) {
-	output, err := systemctl("is-active", hyprsunsetService)
+	output, err := exec.Command("pgrep", "-x", hyprsunsetProcess).CombinedOutput()
 	state := strings.TrimSpace(string(output))
-	if state == "active" {
+	if err == nil {
 		return true, nil
 	}
-	if state == "inactive" || state == "failed" || state == "unknown" {
+	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
 		return false, nil
 	}
-	if err != nil {
+	if state != "" {
 		return false, fmt.Errorf("%s: %w", state, err)
 	}
-	return false, nil
+	return false, err
 }
 
 func SetHyprsunsetRunning(enabled bool) error {
-	action := "stop"
 	if enabled {
-		action = "start"
+		output, err := startHyprsunset()
+		if err != nil {
+			state := strings.TrimSpace(string(output))
+			if state == "" {
+				return err
+			}
+			return fmt.Errorf("%s: %w", state, err)
+		}
+		return nil
 	}
-	output, err := systemctl(action, hyprsunsetService)
+
+	output, err := exec.Command("pkill", "-x", hyprsunsetProcess).CombinedOutput()
 	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			return nil
+		}
 		state := strings.TrimSpace(string(output))
 		if state == "" {
 			return err

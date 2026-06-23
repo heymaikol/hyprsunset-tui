@@ -106,15 +106,15 @@ func TestViewShowsConfigurationFields(t *testing.T) {
 
 func TestEnabledCheckboxTogglesHyprsunsetService(t *testing.T) {
 	binDir := t.TempDir()
-	argsFile := filepath.Join(t.TempDir(), "systemctl-args")
+	argsFile := filepath.Join(t.TempDir(), "uwsm-args")
 	t.Setenv("PATH", binDir)
-	t.Setenv("SYSTEMCTL_ARGS_FILE", argsFile)
-	writeExecutable(t, binDir, "systemctl", "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$SYSTEMCTL_ARGS_FILE\"\nexit 0\n")
+	t.Setenv("UWSM_ARGS_FILE", argsFile)
+	writeExecutable(t, binDir, "uwsm", "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$UWSM_ARGS_FILE\"\nexit 0\n")
 
 	m := model{focusedPanel: commonPanel}
 	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeySpace})
 	if cmd == nil {
-		t.Fatal("Update(space) cmd = nil, want systemctl command")
+		t.Fatal("Update(space) cmd = nil, want uwsm command")
 	}
 
 	msg := cmd()
@@ -126,11 +126,11 @@ func TestEnabledCheckboxTogglesHyprsunsetService(t *testing.T) {
 
 	gotBytes, err := os.ReadFile(argsFile)
 	if err != nil {
-		t.Fatalf("read systemctl args: %v", err)
+		t.Fatalf("read uwsm args: %v", err)
 	}
-	want := "--user\nstart\nhyprsunset.service\n"
+	want := "app\n-s\nb\n-t\nservice\n-u\nhyprsunset.service\n--\nhyprsunset\n"
 	if string(gotBytes) != want {
-		t.Fatalf("systemctl args = %q, want %q", gotBytes, want)
+		t.Fatalf("uwsm args = %q, want %q", gotBytes, want)
 	}
 }
 
@@ -349,7 +349,9 @@ func TestCheckDependencies(t *testing.T) {
 		binDir := t.TempDir()
 		writeExecutable(t, binDir, "hyprsunset", "#!/bin/sh\nexit 0\n")
 		writeExecutable(t, binDir, "hyprctl", "#!/bin/sh\nexit 0\n")
-		writeExecutable(t, binDir, "systemctl", "#!/bin/sh\nexit 0\n")
+		writeExecutable(t, binDir, "uwsm", "#!/bin/sh\nexit 0\n")
+		writeExecutable(t, binDir, "pgrep", "#!/bin/sh\nexit 0\n")
+		writeExecutable(t, binDir, "pkill", "#!/bin/sh\nexit 0\n")
 		t.Setenv("PATH", binDir)
 
 		if err := CheckDependencies(); err != nil {
@@ -385,7 +387,7 @@ func TestCheckDependencies(t *testing.T) {
 		}
 	})
 
-	t.Run("missing systemctl", func(t *testing.T) {
+	t.Run("missing uwsm", func(t *testing.T) {
 		binDir := t.TempDir()
 		writeExecutable(t, binDir, "hyprsunset", "#!/bin/sh\nexit 0\n")
 		writeExecutable(t, binDir, "hyprctl", "#!/bin/sh\nexit 0\n")
@@ -393,10 +395,10 @@ func TestCheckDependencies(t *testing.T) {
 
 		err := CheckDependencies()
 		if err == nil {
-			t.Fatal("CheckDependencies() error = nil, want missing systemctl error")
+			t.Fatal("CheckDependencies() error = nil, want missing uwsm error")
 		}
-		if !strings.Contains(err.Error(), "systemctl") {
-			t.Fatalf("CheckDependencies() error = %q, want systemctl", err)
+		if !strings.Contains(err.Error(), "uwsm") {
+			t.Fatalf("CheckDependencies() error = %q, want uwsm", err)
 		}
 	})
 }
@@ -404,7 +406,7 @@ func TestCheckDependencies(t *testing.T) {
 func TestIsHyprsunsetRunning(t *testing.T) {
 	t.Run("active", func(t *testing.T) {
 		binDir := t.TempDir()
-		writeExecutable(t, binDir, "systemctl", "#!/bin/sh\necho active\nexit 0\n")
+		writeExecutable(t, binDir, "pgrep", "#!/bin/sh\necho 1234\nexit 0\n")
 		t.Setenv("PATH", binDir)
 
 		running, err := IsHyprsunsetRunning()
@@ -418,7 +420,7 @@ func TestIsHyprsunsetRunning(t *testing.T) {
 
 	t.Run("inactive", func(t *testing.T) {
 		binDir := t.TempDir()
-		writeExecutable(t, binDir, "systemctl", "#!/bin/sh\necho inactive\nexit 3\n")
+		writeExecutable(t, binDir, "pgrep", "#!/bin/sh\nexit 1\n")
 		t.Setenv("PATH", binDir)
 
 		running, err := IsHyprsunsetRunning()

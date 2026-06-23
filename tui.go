@@ -72,7 +72,7 @@ func initialModel() model {
 	}
 	enabled, err := IsHyprsunsetRunning()
 	if err != nil {
-		m.status = "systemd: " + err.Error()
+		m.status = "uwsm: " + err.Error()
 		m.statusErr = true
 	} else {
 		m.enabled = enabled

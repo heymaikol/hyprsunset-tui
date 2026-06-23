@@ -41,6 +41,14 @@ func startHyprsunset() ([]byte, error) {
 	).CombinedOutput()
 }
 
+func wrapOutput(output []byte, err error) error {
+	state := strings.TrimSpace(string(output))
+	if state == "" {
+		return err
+	}
+	return fmt.Errorf("%s: %w", state, err)
+}
+
 // IsHyprsunsetRunning reports whether the process is alive
 func IsHyprsunsetRunning() (bool, error) {
 	err := exec.Command("pgrep", "-x", hyprsunsetProcess).Run()
@@ -61,11 +69,7 @@ func SetHyprsunsetRunning(enabled bool) error {
 	if enabled {
 		output, err := startHyprsunset()
 		if err != nil {
-			state := strings.TrimSpace(string(output))
-			if state == "" {
-				return err
-			}
-			return fmt.Errorf("%s: %w", state, err)
+			return wrapOutput(output, err)
 		}
 		return nil
 	}
@@ -76,11 +80,7 @@ func SetHyprsunsetRunning(enabled bool) error {
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
 			return nil
 		}
-		state := strings.TrimSpace(string(output))
-		if state == "" {
-			return err
-		}
-		return fmt.Errorf("%s: %w", state, err)
+		return wrapOutput(output, err)
 	}
 	return nil
 }

@@ -1,0 +1,11 @@
+# golangci-lint v2 config. Run: golangci-lint run ./...
+# Install: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+version: "2"
+linters:
+  enable:
+    - revive    # idiomatic-Go style checks (exported docs, naming)
+    - misspell  # catch typos in comments/strings
+  # defaults already on: errcheck, govet, ineffassign, staticcheck, unused
+formatters:
+  enable:
+    - gofmt

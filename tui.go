@@ -150,10 +150,14 @@ func renderBox(title, body string, focused bool) string {
 		bs.Render(" "+strings.Repeat(border.Top, fill)+border.TopRight)
 
 	var sb strings.Builder
-	sb.WriteString(top + "\n")
+	sb.WriteString(top)
+	sb.WriteByte('\n')
 	for _, l := range lines {
 		content := " " + l + strings.Repeat(" ", inner-lipgloss.Width(l)-1)
-		sb.WriteString(bs.Render(border.Left) + content + bs.Render(border.Right) + "\n")
+		sb.WriteString(bs.Render(border.Left))
+		sb.WriteString(content)
+		sb.WriteString(bs.Render(border.Right))
+		sb.WriteByte('\n')
 	}
 	sb.WriteString(bs.Render(border.BottomLeft + strings.Repeat(border.Top, inner) + border.BottomRight))
 	return sb.String()
@@ -176,7 +180,8 @@ func (m model) View() string {
 	// Add fields + Tab focus-switching when Common gets content.
 	common := renderBox("Common", strings.Repeat("\n", len(fields)-1), false)
 	advanced := renderBox("Advanced", strings.TrimRight(adv.String(), "\n"), true)
-	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, common, "  ", advanced) + "\n")
+	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, common, "  ", advanced))
+	b.WriteByte('\n')
 
 	fmt.Fprintf(&b, "\n%s\n", dimStyle.Render("[↑/↓] select   [←/→] adjust"))
 	fmt.Fprintf(&b, "%s\n", dimStyle.Render("[a/enter] apply   [q] quit"))

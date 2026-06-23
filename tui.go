@@ -155,7 +155,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.status, m.statusErr = msg.text, msg.isErr
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "tab", "shift+tab":
+		case "tab":
 			// Toggle between the two panels (0<->1)
 			m.focusedPanel = commonPanel - m.focusedPanel
 		case "up":

@@ -250,7 +250,7 @@ func (m model) View() string {
 		commonPrefix = "  "
 	}
 	commonBody := fmt.Sprintf("%s%s Enabled\n%s", commonPrefix, checkbox, strings.Repeat("\n", len(fields)-2))
-	common := renderBox("Common", commonBody, m.focusedPanel == commonPanel)
+	common := renderBox("Simple", commonBody, m.focusedPanel == commonPanel)
 	advanced := renderBox("Advanced", strings.TrimRight(adv.String(), "\n"), m.focusedPanel == advancedPanel)
 	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, common, "  ", advanced))
 	b.WriteByte('\n')

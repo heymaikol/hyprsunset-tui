@@ -449,7 +449,7 @@ func TestNotify(t *testing.T) {
 	t.Run("missing notify-send", func(t *testing.T) {
 		t.Setenv("PATH", t.TempDir())
 
-		err := Notify("title", "body")
+		err := Notify("body")
 		if err == nil {
 			t.Fatal("Notify() error = nil, want missing notify-send error")
 		}
@@ -466,7 +466,7 @@ func TestNotify(t *testing.T) {
 
 		writeExecutable(t, binDir, "notify-send", "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$NOTIFY_ARGS_FILE\"\n")
 
-		if err := Notify("title", "body"); err != nil {
+		if err := Notify("body"); err != nil {
 			t.Fatalf("Notify() error = %v", err)
 		}
 
@@ -475,7 +475,7 @@ func TestNotify(t *testing.T) {
 			t.Fatalf("read notify args: %v", err)
 		}
 
-		want := "-a\nhyprsunset-controller\n-u\ncritical\ntitle\nbody\n"
+		want := "-a\nhyprsunset-controller\n-u\ncritical\nhyprsunset-controller\nbody\n"
 		if got := string(gotBytes); got != want {
 			t.Fatalf("notify-send args = %q, want %q", got, want)
 		}
@@ -486,7 +486,7 @@ func TestNotify(t *testing.T) {
 		writeExecutable(t, binDir, "notify-send", "#!/bin/sh\nexit 42\n")
 		t.Setenv("PATH", binDir)
 
-		if err := Notify("title", "body"); err == nil {
+		if err := Notify("body"); err == nil {
 			t.Fatal("Notify() error = nil, want command error")
 		}
 	})

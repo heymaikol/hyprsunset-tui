@@ -17,7 +17,7 @@ func CheckDependencies() error {
 	return nil
 }
 
-func Notify(title, body string) error {
+func Notify(body string) error {
 	// Check if notify-send is in the PATH
 	if _, err := exec.LookPath("notify-send"); err != nil {
 		return errors.New("notify-send is not found in PATH (Not installed?)")
@@ -28,7 +28,7 @@ func Notify(title, body string) error {
 		"notify-send",
 		"-a", "hyprsunset-controller",
 		"-u", "critical",
-		title,
+		"hyprsunset-controller",
 		body,
 	).Run()
 }

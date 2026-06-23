@@ -60,11 +60,12 @@ func initialModel() model {
 		profile = defaultHyprsunsetProfile()
 	}
 	m := model{
-		temp:     profile.temperature,
-		gamma:    profile.gamma,
-		time:     profile.time,
-		identity: profile.identity,
-		saved:    profile,
+		temp:         profile.temperature,
+		gamma:        profile.gamma,
+		time:         profile.time,
+		identity:     profile.identity,
+		focusedPanel: commonPanel,
+		saved:        profile,
 	}
 	if err != nil {
 		m.status = "config: " + err.Error()

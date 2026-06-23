@@ -35,14 +35,22 @@ var (
 )
 
 type model struct {
-	temp      int
-	gamma     float32
-	cursor    int
-	time      string
-	identity  bool
-	status    string
-	statusErr bool
+	temp         int
+	gamma        float32
+	cursor       int
+	focusedPanel panel
+	time         string
+	identity     bool
+	status       string
+	statusErr    bool
 }
+
+type panel int
+
+const (
+	advancedPanel panel = iota
+	commonPanel
+)
 
 func initialModel() model {
 	profile, err := loadHyprsunsetProfile()
@@ -85,17 +93,31 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.status, m.statusErr = msg.text, msg.isErr
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "tab", "shift+tab":
+			m.togglePanel()
 		case "up":
+			if m.focusedPanel != advancedPanel {
+				break
+			}
 			if m.cursor > 0 {
 				m.cursor--
 			}
 		case "down":
+			if m.focusedPanel != advancedPanel {
+				break
+			}
 			if m.cursor < len(fields)-1 {
 				m.cursor++
 			}
 		case "left":
+			if m.focusedPanel != advancedPanel {
+				break
+			}
 			fields[m.cursor].adjust(&m, -1)
 		case "right":
+			if m.focusedPanel != advancedPanel {
+				break
+			}
 			fields[m.cursor].adjust(&m, 1)
 		case "a", "enter":
 			return m, applyCmd(m.temp, m.gamma)
@@ -104,6 +126,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+func (m *model) togglePanel() {
+	if m.focusedPanel == advancedPanel {
+		m.focusedPanel = commonPanel
+		return
+	}
+	m.focusedPanel = advancedPanel
 }
 
 // field is one editable row. render shows the value; adjust changes it by dir (-1/+1).
@@ -170,20 +200,19 @@ func (m model) View() string {
 	var adv strings.Builder
 	for i, f := range fields {
 		prefix := "  "
-		if m.cursor == i {
+		if m.focusedPanel == advancedPanel && m.cursor == i {
 			prefix = "> "
 		}
 		fmt.Fprintf(&adv, "%s%s: %s\n", prefix, f.label, valStyle.Render(f.render(m)))
 	}
 
-	// ponytail: Common empty (blank lines match Advanced height); always-unfocused.
-	// Add fields + Tab focus-switching when Common gets content.
-	common := renderBox("Common", strings.Repeat("\n", len(fields)-1), false)
-	advanced := renderBox("Advanced", strings.TrimRight(adv.String(), "\n"), true)
+	// Common is intentionally empty for now; blank lines keep panel heights aligned.
+	common := renderBox("Common", strings.Repeat("\n", len(fields)-1), m.focusedPanel == commonPanel)
+	advanced := renderBox("Advanced", strings.TrimRight(adv.String(), "\n"), m.focusedPanel == advancedPanel)
 	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, common, "  ", advanced))
 	b.WriteByte('\n')
 
-	fmt.Fprintf(&b, "\n%s\n", dimStyle.Render("[↑/↓] select   [←/→] adjust"))
+	fmt.Fprintf(&b, "\n%s\n", dimStyle.Render("[tab] panel   [↑/↓] select   [←/→] adjust"))
 	fmt.Fprintf(&b, "%s\n", dimStyle.Render("[a/enter] apply   [q] quit"))
 	if m.status != "" {
 		style := dimStyle

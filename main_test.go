@@ -40,6 +40,35 @@ func TestCursorAdjustsSelectedField(t *testing.T) {
 	}
 }
 
+func TestTabSwitchesBetweenPanels(t *testing.T) {
+	step := func(m model, k tea.KeyType) model {
+		next, _ := m.Update(tea.KeyMsg{Type: k})
+		return next.(model)
+	}
+
+	m := model{time: "12:00", identity: false, temp: 6000, gamma: 1.0}
+
+	m = step(m, tea.KeyTab)
+	if m.focusedPanel != commonPanel {
+		t.Fatalf("focusedPanel = %v, want commonPanel", m.focusedPanel)
+	}
+
+	m = step(m, tea.KeyLeft)
+	if m.time != "12:00" {
+		t.Fatalf("time changed while Common focused: got %q, want 12:00", m.time)
+	}
+
+	m = step(m, tea.KeyShiftTab)
+	if m.focusedPanel != advancedPanel {
+		t.Fatalf("focusedPanel = %v, want advancedPanel", m.focusedPanel)
+	}
+
+	m = step(m, tea.KeyLeft)
+	if m.time != "11:45" {
+		t.Fatalf("time = %q, want 11:45", m.time)
+	}
+}
+
 func TestClamp(t *testing.T) {
 	if clamp(500, tempMin, tempMax) != tempMin {
 		t.Fatal("below min not clamped")

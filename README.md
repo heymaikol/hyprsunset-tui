@@ -13,7 +13,7 @@ go build -o hyprsunset-controller .
 ./hyprsunset-controller        # or: go run .
 ```
 
-Keys: `←/→` adjust · `↓/↑` select · `a`/`enter` apply · `q` quit.
+Keys: `tab` switch panel · `←/→` adjust · `↓/↑` select · `a`/`enter` apply · `q` quit.
 
 Applying needs the `hyprsunset` daemon running (`hyprsunset &`). The UI works without it; `apply` just reports an error.
 

@@ -220,29 +220,22 @@ func renderBox(title, body string, focused bool) string {
 	}
 	bs := lipgloss.NewStyle().Foreground(color)
 
-	lines := strings.Split(body, "\n")
-	inner := lipgloss.Width(title) + 4
-	for _, l := range lines {
-		inner = max(inner, lipgloss.Width(l)+3)
+	style := lipgloss.NewStyle().
+		Border(border).
+		BorderForeground(color).
+		Padding(0, 1)
+	lines := strings.Split(style.Render(body), "\n")
+	titleWidth := lipgloss.Width(title)
+	if lipgloss.Width(lines[0]) < titleWidth+6 {
+		lines = strings.Split(style.Width(titleWidth+4).Render(body), "\n")
 	}
-
-	fill := inner - lipgloss.Width(title) - 3
+	width := lipgloss.Width(lines[0])
+	fill := width - titleWidth - 5
 	top := bs.Render(border.TopLeft+border.Top+" ") +
 		bs.Bold(true).Render(title) +
 		bs.Render(" "+strings.Repeat(border.Top, fill)+border.TopRight)
-
-	var sb strings.Builder
-	sb.WriteString(top)
-	sb.WriteByte('\n')
-	for _, l := range lines {
-		content := " " + l + strings.Repeat(" ", inner-lipgloss.Width(l)-1)
-		sb.WriteString(bs.Render(border.Left))
-		sb.WriteString(content)
-		sb.WriteString(bs.Render(border.Right))
-		sb.WriteByte('\n')
-	}
-	sb.WriteString(bs.Render(border.BottomLeft + strings.Repeat(border.Top, inner) + border.BottomRight))
-	return sb.String()
+	lines[0] = top
+	return strings.Join(lines, "\n")
 }
 
 func (m model) View() string {

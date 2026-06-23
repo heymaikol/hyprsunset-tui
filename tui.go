@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -101,26 +102,41 @@ type statusMsg struct {
 	saved   *hyprsunsetProfile
 }
 
-// applyCmd pushes temp/gamma to the running hyprsunset (not persisted)
-func applyCmd(temp int, gamma float32) tea.Cmd {
-	return func() tea.Msg {
-		// Apply temperature first; bail out on failure
-		if err := SetTemperature(temp); err != nil {
-			return statusMsg{text: "temperature: " + err.Error(), isErr: true}
-		}
-		// Gamma is sent as an integer percent (1.0 -> 100)
-		if err := SetGamma(int(gamma * 100)); err != nil {
-			return statusMsg{text: "gamma: " + err.Error(), isErr: true}
-		}
-		return statusMsg{text: fmt.Sprintf("applied %dK / %.1f", temp, gamma), isErr: false}
+// pushSettings sends temp/gamma to the running hyprsunset (not persisted)
+func pushSettings(temp int, gamma float32) error {
+	// Apply temperature first; bail out on failure
+	if err := SetTemperature(temp); err != nil {
+		return fmt.Errorf("temperature: %w", err)
 	}
+	// Gamma is sent as an integer percent (1.0 -> 100)
+	if err := SetGamma(int(gamma * 100)); err != nil {
+		return fmt.Errorf("gamma: %w", err)
+	}
+	return nil
 }
 
-// setEnabledCmd starts or stops hyprsunset and reports the new state
-func setEnabledCmd(enabled bool) tea.Cmd {
+// setEnabledCmd starts or stops hyprsunset and reports the new state. On enable
+// it also pushes temp/gamma so the configured warmth shows immediately without
+// a separate apply.
+func setEnabledCmd(enabled bool, temp int, gamma float32) tea.Cmd {
 	return func() tea.Msg {
 		if err := SetHyprsunsetRunning(enabled); err != nil {
 			return statusMsg{text: "enabled: " + err.Error(), isErr: true}
+		}
+		if enabled {
+			// The daemon's IPC socket can lag the service start, so retry the
+			// push briefly before giving up.
+			// ponytail: 10x100ms covers the startup race; widen if slow boxes still miss
+			var err error
+			for i := 0; i < 10; i++ {
+				if err = pushSettings(temp, gamma); err == nil {
+					break
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+			if err != nil {
+				return statusMsg{text: err.Error(), isErr: true, enabled: &enabled}
+			}
 		}
 		// Human-readable label for the status line
 		state := "disabled"
@@ -177,7 +193,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// In Simple panel, left disables hyprsunset; in Advanced it decrements the field
 			if m.focusedPanel != advancedPanel {
 				if m.focusedPanel == commonPanel && m.enabled {
-					return m, setEnabledCmd(false)
+					return m, setEnabledCmd(false, m.temp, m.gamma)
 				}
 				break
 			}
@@ -186,14 +202,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// In Simple panel, right enables hyprsunset; in Advanced it increments the field
 			if m.focusedPanel != advancedPanel {
 				if m.focusedPanel == commonPanel && !m.enabled {
-					return m, setEnabledCmd(true)
+					return m, setEnabledCmd(true, m.temp, m.gamma)
 				}
 				break
 			}
 			fields[m.cursor].adjust(&m, 1)
-		case "enter":
-			// Apply current temp/gamma to the live session
-			return m, applyCmd(m.temp, m.gamma)
 		case "s":
 			// Persist the current values to the profile file
 			return m, saveConfigCmd(hyprsunsetProfile{
@@ -326,7 +339,7 @@ func (m model) View() string {
 
 	// Two-line key hint footer
 	fmt.Fprintf(&b, "\n%s\n", dimStyle.Render("[tab] panel   [↑/↓] select   [←/→] adjust"))
-	fmt.Fprintf(&b, "%s\n", dimStyle.Render("[enter] apply   [s] save   [q] quit"))
+	fmt.Fprintf(&b, "%s\n", dimStyle.Render("[s] save   [q] quit"))
 	// Status line, red on error
 	if m.status != "" {
 		style := dimStyle

@@ -146,7 +146,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "tab", "shift+tab":
-			m.togglePanel()
+			m.focusedPanel = commonPanel - m.focusedPanel
 		case "up":
 			if m.focusedPanel != advancedPanel {
 				break
@@ -190,14 +190,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
-}
-
-func (m *model) togglePanel() {
-	if m.focusedPanel == advancedPanel {
-		m.focusedPanel = commonPanel
-		return
-	}
-	m.focusedPanel = advancedPanel
 }
 
 // field is one editable row. render shows the value; adjust changes it by dir (-1/+1).

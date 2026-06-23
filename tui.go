@@ -44,6 +44,7 @@ type model struct {
 	enabled      bool
 	status       string
 	statusErr    bool
+	saved        hyprsunsetProfile // on-disk profile, for the diff box
 }
 
 type panel int
@@ -60,6 +61,7 @@ func initialModel() model {
 		gamma:    profile.gamma,
 		time:     profile.time,
 		identity: profile.identity,
+		saved:    profile,
 	}
 	if err != nil {
 		m.status = "config: " + err.Error()
@@ -252,7 +254,23 @@ func (m model) View() string {
 	commonBody := fmt.Sprintf("%s%s Enabled\n%s", commonPrefix, checkbox, strings.Repeat("\n", len(fields)-2))
 	common := renderBox("Simple", commonBody, m.focusedPanel == commonPanel)
 	advanced := renderBox("Advanced", strings.TrimRight(adv.String(), "\n"), m.focusedPanel == advancedPanel)
-	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, common, "  ", advanced))
+
+	// Profile box: reuse field renders against a model holding the on-disk values.
+	old := m
+	old.time, old.identity = m.saved.time, m.saved.identity
+	old.temp, old.gamma = m.saved.temperature, m.saved.gamma
+	var prof strings.Builder
+	for _, f := range fields {
+		cur, was := f.render(m), f.render(old)
+		val := valStyle.Render(cur)
+		if cur != was {
+			val = dimStyle.Render(was) + " → " + valStyle.Render(cur)
+		}
+		fmt.Fprintf(&prof, "%s: %s\n", f.label, val)
+	}
+	profile := renderBox("Profile", strings.TrimRight(prof.String(), "\n"), false)
+
+	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, common, "  ", advanced, "  ", profile))
 	b.WriteByte('\n')
 
 	fmt.Fprintf(&b, "\n%s\n", dimStyle.Render("[tab] panel   [↑/↓] select   [←/→] adjust"))

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"strconv"
 	"strings"
@@ -21,24 +22,10 @@ const (
 	neutralGamma     float32 = 1.0
 )
 
-func clamp(v, lo, hi int) int {
-	if v < lo {
-		return lo
-	}
-	if v > hi {
-		return hi
-	}
-	return v
-}
-
-func clampFloat(v, lo, hi float32) float32 {
-	if v < lo {
-		return lo
-	}
-	if v > hi {
-		return hi
-	}
-	return v
+// Returns lo if v is below it
+// Returns hi if v is above it
+func clamp[T cmp.Ordered](v, lo, hi T) T {
+	return max(lo, min(hi, v))
 }
 
 var (
@@ -131,7 +118,7 @@ var fields = []field{
 	{"Time", func(m model) string { return m.time }, func(m *model, d int) { m.time = adjustTime(m.time, d*timeStep) }},
 	{"Identity", func(m model) string { return strconv.FormatBool(m.identity) }, func(m *model, d int) { m.identity = !m.identity }},
 	{"Temperature", func(m model) string { return strconv.Itoa(m.temp) + " K" }, func(m *model, d int) { m.temp = clamp(m.temp+d*tempStep, tempMin, tempMax) }},
-	{"Gamma", func(m model) string { return fmt.Sprintf("%.1f", m.gamma) }, func(m *model, d int) { m.gamma = clampFloat(m.gamma+float32(d)*gammaStep, gammaMin, gammaMax) }},
+	{"Gamma", func(m model) string { return fmt.Sprintf("%.1f", m.gamma) }, func(m *model, d int) { m.gamma = clamp(m.gamma+float32(d)*gammaStep, gammaMin, gammaMax) }},
 }
 
 // adjustTime shifts "H:MM" by deltaMin, wrapping within a day.

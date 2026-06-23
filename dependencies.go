@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 )
@@ -19,7 +20,7 @@ func CheckDependencies() error {
 func Notify(title, body string) error {
 	// Check if notify-send is in the PATH
 	if _, err := exec.LookPath("notify-send"); err != nil {
-		return fmt.Errorf("notify-send is not found in PATH (Not installed?)")
+		return errors.New("notify-send is not found in PATH (Not installed?)")
 	}
 
 	// This runs the notify-send command

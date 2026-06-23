@@ -131,6 +131,37 @@ func TestEnabledCheckboxTogglesHyprsunsetService(t *testing.T) {
 	}
 }
 
+func TestEnterAppliesAndADoesNot(t *testing.T) {
+	binDir := t.TempDir()
+	argsFile := filepath.Join(t.TempDir(), "hyprctl-args")
+	t.Setenv("PATH", binDir)
+	t.Setenv("HYPRCTL_ARGS_FILE", argsFile)
+	writeExecutable(t, binDir, "hyprctl", "#!/bin/sh\nprintf '%s\\n' \"$@\" >> \"$HYPRCTL_ARGS_FILE\"\nexit 0\n")
+
+	m := model{temp: 4500, gamma: 0.8}
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	if cmd != nil {
+		t.Fatal("Update(a) cmd != nil, want nil")
+	}
+
+	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("Update(enter) cmd = nil, want hyprctl command")
+	}
+	if msg := cmd(); msg != (appliedMsg{text: "applied 4500K / 0.8", isErr: false}) {
+		t.Fatalf("enter command msg = %#v, want successful appliedMsg", msg)
+	}
+
+	gotBytes, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatalf("read hyprctl args: %v", err)
+	}
+	want := "hyprsunset\ntemperature\n4500\nhyprsunset\ngamma\n80\n"
+	if string(gotBytes) != want {
+		t.Fatalf("hyprctl args = %q, want %q", gotBytes, want)
+	}
+}
+
 func TestParseContent(t *testing.T) {
 	t.Run("identity profile keeps default visible values", func(t *testing.T) {
 		config := `

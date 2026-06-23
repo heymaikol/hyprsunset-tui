@@ -163,8 +163,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "enter":
 			return m, applyCmd(m.temp, m.gamma)
-		case "a":
-			return m, applyCmd(m.temp, m.gamma)
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
 		}
@@ -265,7 +263,7 @@ func (m model) View() string {
 	b.WriteByte('\n')
 
 	fmt.Fprintf(&b, "\n%s\n", dimStyle.Render("[tab] panel   [↑/↓] select   [←/→] adjust"))
-	fmt.Fprintf(&b, "%s\n", dimStyle.Render("[space] enable   [a/enter] apply   [q] quit"))
+	fmt.Fprintf(&b, "%s\n", dimStyle.Render("[space] enable   [enter] apply   [q] quit"))
 	if m.status != "" {
 		style := dimStyle
 		if m.statusErr {

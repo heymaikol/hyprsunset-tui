@@ -7,7 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// hyprsunset-controller — Bubble Tea TUI scaffold.
+// hyprsunset-controller — Bubble Tea TUI scaffold
 //
 // Extend here:
 //   - keys:       add cases in Update's tea.KeyMsg switch, document them in View

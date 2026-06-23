@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-// hyprsunset wraps the hyprsunset runtime IPC. It currently shells out to
-// `hyprctl hyprsunset ...`; swap the body of hyprctl() for a direct socket
-// client if you outgrow that. Add new commands here as typed funcs.
+// hyprsunset wraps the hyprsunset runtime IPC; it currently shells out to
+// `hyprctl hyprsunset ...`, swap the body of hyprctl() for a direct socket
+// client if you outgrow that — add new commands here as typed funcs
 
 const hyprsunsetProcess = "hyprsunset"
 

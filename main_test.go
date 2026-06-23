@@ -165,6 +165,108 @@ func TestEnterAppliesAndADoesNot(t *testing.T) {
 	}
 }
 
+func TestSaveHyprsunsetProfileWritesConfig(t *testing.T) {
+	configDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configDir)
+	configPath := filepath.Join(configDir, hyprsunsetConfigPath)
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("create config dir: %v", err)
+	}
+	existing := []byte(`# keep this comment
+profile {
+    time = 07:00
+    temperature = 6500
+    gamma = 1.0
+}
+
+profile {
+    time = 19:00
+    temperature = 4500
+    gamma = 0.8
+}
+`)
+	if err := os.WriteFile(configPath, existing, 0o600); err != nil {
+		t.Fatalf("write existing config: %v", err)
+	}
+
+	want := hyprsunsetProfile{
+		time:        "20:30",
+		identity:    true,
+		temperature: 4250,
+		gamma:       0.7,
+	}
+	if err := saveHyprsunsetProfile(want); err != nil {
+		t.Fatalf("saveHyprsunsetProfile() error = %v", err)
+	}
+
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read saved config: %v", err)
+	}
+	if !strings.Contains(string(content), "time = 07:00") {
+		t.Fatalf("saved config = %q, want first profile preserved", content)
+	}
+	if count := strings.Count(string(content), "profile {"); count != 2 {
+		t.Fatalf("profile count = %d, want 2", count)
+	}
+	got, err := parseContent(content)
+	if err != nil {
+		t.Fatalf("parse saved config: %v", err)
+	}
+	if got != want {
+		t.Fatalf("saved profile = %+v, want %+v", got, want)
+	}
+	if info, err := os.Stat(configPath); err != nil {
+		t.Fatalf("stat saved config: %v", err)
+	} else if info.Mode().Perm() != 0o600 {
+		t.Fatalf("saved config mode = %v, want 0600", info.Mode().Perm())
+	}
+}
+
+func TestSKeySavesCurrentConfiguration(t *testing.T) {
+	configDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configDir)
+
+	m := model{
+		time:     "06:15",
+		identity: false,
+		temp:     5000,
+		gamma:    0.9,
+		saved: hyprsunsetProfile{
+			time:        "00:00",
+			temperature: neutralTemp,
+			gamma:       neutralGamma,
+		},
+	}
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if cmd == nil {
+		t.Fatal("Update(s) cmd = nil, want save command")
+	}
+
+	msg := cmd()
+	next, _ = next.(model).Update(msg)
+	got := next.(model)
+	want := hyprsunsetProfile{time: "06:15", temperature: 5000, gamma: 0.9}
+	if got.status != "saved configuration" || got.statusErr {
+		t.Fatalf("status = %q / %t, want saved configuration / false", got.status, got.statusErr)
+	}
+	if got.saved != want {
+		t.Fatalf("saved baseline = %+v, want %+v", got.saved, want)
+	}
+
+	content, err := os.ReadFile(filepath.Join(configDir, hyprsunsetConfigPath))
+	if err != nil {
+		t.Fatalf("read saved config: %v", err)
+	}
+	profile, err := parseContent(content)
+	if err != nil {
+		t.Fatalf("parse saved config: %v", err)
+	}
+	if profile != want {
+		t.Fatalf("file profile = %+v, want %+v", profile, want)
+	}
+}
+
 func TestParseContent(t *testing.T) {
 	t.Run("identity profile keeps default visible values", func(t *testing.T) {
 		config := `

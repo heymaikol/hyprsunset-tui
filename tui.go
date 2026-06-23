@@ -56,6 +56,9 @@ const (
 
 func initialModel() model {
 	profile, err := loadHyprsunsetProfile()
+	if err != nil {
+		profile = defaultHyprsunsetProfile()
+	}
 	m := model{
 		temp:     profile.temperature,
 		gamma:    profile.gamma,
@@ -84,6 +87,7 @@ type statusMsg struct {
 	text    string
 	isErr   bool
 	enabled *bool
+	saved   *hyprsunsetProfile
 }
 
 func applyCmd(temp int, gamma float32) tea.Cmd {
@@ -111,11 +115,32 @@ func setEnabledCmd(enabled bool) tea.Cmd {
 	}
 }
 
+func (m model) currentProfile() hyprsunsetProfile {
+	return hyprsunsetProfile{
+		time:        m.time,
+		temperature: m.temp,
+		gamma:       m.gamma,
+		identity:    m.identity,
+	}
+}
+
+func saveConfigCmd(profile hyprsunsetProfile) tea.Cmd {
+	return func() tea.Msg {
+		if err := saveHyprsunsetProfile(profile); err != nil {
+			return statusMsg{text: "save: " + err.Error(), isErr: true}
+		}
+		return statusMsg{text: "saved configuration", isErr: false, saved: &profile}
+	}
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case statusMsg:
 		if msg.enabled != nil {
 			m.enabled = *msg.enabled
+		}
+		if msg.saved != nil {
+			m.saved = *msg.saved
 		}
 		m.status, m.statusErr = msg.text, msg.isErr
 	case tea.KeyMsg:
@@ -158,6 +183,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "enter":
 			return m, applyCmd(m.temp, m.gamma)
+		case "s":
+			return m, saveConfigCmd(m.currentProfile())
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
 		}
@@ -281,7 +308,7 @@ func (m model) View() string {
 	b.WriteByte('\n')
 
 	fmt.Fprintf(&b, "\n%s\n", dimStyle.Render("[tab] panel   [↑/↓] select   [←/→] adjust"))
-	fmt.Fprintf(&b, "%s\n", dimStyle.Render("[space] enable   [enter] apply   [q] quit"))
+	fmt.Fprintf(&b, "%s\n", dimStyle.Render("[space] enable   [enter] apply   [s] save   [q] quit"))
 	if m.status != "" {
 		style := dimStyle
 		if m.statusErr {

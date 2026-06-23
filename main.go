@@ -17,7 +17,7 @@ import (
 func main() {
 	// Check if Dependencies are installed
 	if err := CheckDependencies(); err != nil {
-		if notifyErr := Notify("hyprsunset-controller", err.Error()); notifyErr != nil {
+		if notifyErr := Notify(err.Error()); notifyErr != nil {
 			fmt.Fprintln(os.Stderr, "Notification Error:", notifyErr) // Print this just if Notify() errors
 		}
 

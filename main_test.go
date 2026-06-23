@@ -148,8 +148,8 @@ func TestEnterAppliesAndADoesNot(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("Update(enter) cmd = nil, want hyprctl command")
 	}
-	if msg := cmd(); msg != (appliedMsg{text: "applied 4500K / 0.8", isErr: false}) {
-		t.Fatalf("enter command msg = %#v, want successful appliedMsg", msg)
+	if msg := cmd(); msg != (statusMsg{text: "applied 4500K / 0.8", isErr: false}) {
+		t.Fatalf("enter command msg = %#v, want successful statusMsg", msg)
 	}
 
 	gotBytes, err := os.ReadFile(argsFile)

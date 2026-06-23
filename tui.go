@@ -77,50 +77,43 @@ func initialModel() model {
 
 func (m model) Init() tea.Cmd { return nil }
 
-// appliedMsg carries the result of an async hyprsunset call back into Update.
-type appliedMsg struct {
-	text  string
-	isErr bool
-}
-
-type enabledMsg struct {
-	enabled bool
+// statusMsg carries the result of an async operation back into Update.
+type statusMsg struct {
 	text    string
 	isErr   bool
+	enabled *bool
 }
 
 func applyCmd(temp int, gamma float32) tea.Cmd {
 	return func() tea.Msg {
 		if err := SetTemperature(temp); err != nil {
-			return appliedMsg{"temperature: " + err.Error(), true}
+			return statusMsg{text: "temperature: " + err.Error(), isErr: true}
 		}
 		if err := SetGamma(int(gamma * 100)); err != nil {
-			return appliedMsg{"gamma: " + err.Error(), true}
+			return statusMsg{text: "gamma: " + err.Error(), isErr: true}
 		}
-		return appliedMsg{fmt.Sprintf("applied %dK / %.1f", temp, gamma), false}
+		return statusMsg{text: fmt.Sprintf("applied %dK / %.1f", temp, gamma), isErr: false}
 	}
 }
 
 func setEnabledCmd(enabled bool) tea.Cmd {
 	return func() tea.Msg {
 		if err := SetHyprsunsetRunning(enabled); err != nil {
-			return enabledMsg{enabled: !enabled, text: "enabled: " + err.Error(), isErr: true}
+			return statusMsg{text: "enabled: " + err.Error(), isErr: true}
 		}
 		state := "disabled"
 		if enabled {
 			state = "enabled"
 		}
-		return enabledMsg{enabled: enabled, text: "hyprsunset " + state, isErr: false}
+		return statusMsg{text: "hyprsunset " + state, isErr: false, enabled: &enabled}
 	}
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case appliedMsg:
-		m.status, m.statusErr = msg.text, msg.isErr
-	case enabledMsg:
-		if !msg.isErr {
-			m.enabled = msg.enabled
+	case statusMsg:
+		if msg.enabled != nil {
+			m.enabled = *msg.enabled
 		}
 		m.status, m.statusErr = msg.text, msg.isErr
 	case tea.KeyMsg:

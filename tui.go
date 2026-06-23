@@ -254,10 +254,11 @@ func (m model) View() string {
 	if m.enabled {
 		checkbox = "[x]"
 	}
-	commonBody := fmt.Sprintf("> %s Enabled\n%s", checkbox, strings.Repeat("\n", len(fields)-2))
+	commonPrefix := "> "
 	if m.focusedPanel != commonPanel {
-		commonBody = fmt.Sprintf("  %s Enabled\n%s", checkbox, strings.Repeat("\n", len(fields)-2))
+		commonPrefix = "  "
 	}
+	commonBody := fmt.Sprintf("%s%s Enabled\n%s", commonPrefix, checkbox, strings.Repeat("\n", len(fields)-2))
 	common := renderBox("Common", commonBody, m.focusedPanel == commonPanel)
 	advanced := renderBox("Advanced", strings.TrimRight(adv.String(), "\n"), m.focusedPanel == advancedPanel)
 	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, common, "  ", advanced))

@@ -7,13 +7,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// hyprsunset-controller — Bubble Tea TUI scaffold
-//
-// Extend here:
-//   - keys:       add cases in Update's tea.KeyMsg switch, document them in View
-//   - IPC:        add hyprsunset commands in hyprsunset.go, call them from a tea.Cmd
-//   - persistence: load before tea.NewProgram, save after Run returns
-
 func main() {
 	// Check if Dependencies are installed
 	if err := CheckDependencies(); err != nil {

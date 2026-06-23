@@ -7,10 +7,6 @@ import (
 	"strings"
 )
 
-// hyprsunset wraps the hyprsunset runtime IPC; it currently shells out to
-// `hyprctl hyprsunset ...`, swap the body of hyprctl() for a direct socket
-// client if you outgrow that — add new commands here as typed funcs
-
 // process name, as matched by pgrep/pkill -x
 const hyprsunsetProcess = "hyprsunset"
 

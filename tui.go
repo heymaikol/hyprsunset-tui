@@ -128,16 +128,56 @@ func adjustTime(s string, deltaMin int) string {
 	return fmt.Sprintf("%02d:%02d", t/60, t%60)
 }
 
+// renderBox draws a bluetui-style bordered box: title sits in the top border,
+// focused box gets a bright border. Auto-sizes to title/body width.
+func renderBox(title, body string, focused bool) string {
+	border := lipgloss.RoundedBorder()
+	color := lipgloss.Color("244")
+	if focused {
+		color = lipgloss.Color("214")
+	}
+	bs := lipgloss.NewStyle().Foreground(color)
+
+	lines := strings.Split(body, "\n")
+	inner := lipgloss.Width(title) + 4
+	for _, l := range lines {
+		inner = max(inner, lipgloss.Width(l)+3)
+	}
+
+	fill := inner - lipgloss.Width(title) - 3
+	top := bs.Render(border.TopLeft+border.Top+" ") +
+		bs.Bold(true).Render(title) +
+		bs.Render(" "+strings.Repeat(border.Top, fill)+border.TopRight)
+
+	var sb strings.Builder
+	sb.WriteString(top + "\n")
+	for _, l := range lines {
+		content := " " + l + strings.Repeat(" ", inner-lipgloss.Width(l)-1)
+		sb.WriteString(bs.Render(border.Left) + content + bs.Render(border.Right) + "\n")
+	}
+	sb.WriteString(bs.Render(border.BottomLeft + strings.Repeat(border.Top, inner) + border.BottomRight))
+	return sb.String()
+}
+
 func (m model) View() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s\n\n", titleStyle.Render("hyprsunset-controller"))
+
+	var adv strings.Builder
 	for i, f := range fields {
 		prefix := "  "
 		if m.cursor == i {
 			prefix = "> "
 		}
-		fmt.Fprintf(&b, "%s%s: %s\n", prefix, f.label, valStyle.Render(f.render(m)))
+		fmt.Fprintf(&adv, "%s%s: %s\n", prefix, f.label, valStyle.Render(f.render(m)))
 	}
+
+	// ponytail: Common empty (blank lines match Advanced height); always-unfocused.
+	// Add fields + Tab focus-switching when Common gets content.
+	common := renderBox("Common", strings.Repeat("\n", len(fields)-1), false)
+	advanced := renderBox("Advanced", strings.TrimRight(adv.String(), "\n"), true)
+	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, common, "  ", advanced) + "\n")
+
 	fmt.Fprintf(&b, "\n%s\n", dimStyle.Render("[↑/↓] select   [←/→] adjust"))
 	fmt.Fprintf(&b, "%s\n", dimStyle.Render("[a/enter] apply   [q] quit"))
 	if m.status != "" {

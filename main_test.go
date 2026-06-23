@@ -140,7 +140,7 @@ func TestRightArrowEnablesHyprsunsetService(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read uwsm args: %v", err)
 	}
-	want := "app\n-s\nb\n-t\nservice\n-u\nhyprsunset.service\n--\nhyprsunset\n"
+	want := "app\n-s\nb\n-t\nservice\n--\nhyprsunset\n"
 	if string(gotBytes) != want {
 		t.Fatalf("uwsm args = %q, want %q", gotBytes, want)
 	}

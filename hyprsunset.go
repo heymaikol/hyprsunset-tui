@@ -26,14 +26,16 @@ func SetTemperature(kelvin int) error { return hyprctl("temperature", strconv.It
 func SetGamma(percent int) error { return hyprctl("gamma", strconv.Itoa(percent)) }
 
 // startHyprsunset launches hyprsunset as a uwsm-managed systemd service so it
-// outlives this process; returns combined output for error context
+// outlives this process; returns combined output for error context.
+// Don't pass -u: the distro ships /usr/lib/systemd/user/hyprsunset.service, so
+// forcing that transient unit name collides ("Unit ... already loaded or has a
+// fragment file"). Let uwsm autogenerate a unique name like omarchy does.
 func startHyprsunset() ([]byte, error) {
 	return exec.Command(
 		"uwsm",
 		"app",
 		"-s", "b",
 		"-t", "service",
-		"-u", "hyprsunset.service",
 		"--",
 		"hyprsunset",
 	).CombinedOutput()

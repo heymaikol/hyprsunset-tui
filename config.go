@@ -97,6 +97,11 @@ func formatHyprsunsetProfile(profile hyprsunsetProfile) []byte {
 	return b.Bytes()
 }
 
+func configLine(raw string) string {
+	body, _, _ := strings.Cut(raw, "#")
+	return strings.TrimSpace(body)
+}
+
 // replaceLastProfileContent swaps the last `profile { ... }` block in content
 // for profile, leaving everything else untouched; appends if none is found
 func replaceLastProfileContent(content, profile []byte) []byte {
@@ -107,7 +112,7 @@ func replaceLastProfileContent(content, profile []byte) []byte {
 
 	// Find the last balanced profile block; comments (after #) are ignored
 	for i, rawLine := range lines {
-		line := strings.TrimSpace(strings.Split(rawLine, "#")[0])
+		line := configLine(rawLine)
 		switch {
 		case line == "profile {":
 			currentStart = i
@@ -140,7 +145,7 @@ func parseContent(content []byte) (hyprsunsetProfile, error) {
 
 	for _, rawLine := range strings.Split(string(content), "\n") {
 		// Strip trailing comments and surrounding whitespace
-		line := strings.TrimSpace(strings.Split(rawLine, "#")[0])
+		line := configLine(rawLine)
 
 		switch {
 		case line == "profile {":

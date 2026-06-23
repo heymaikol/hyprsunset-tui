@@ -6,20 +6,11 @@ import (
 )
 
 func CheckDependencies() error {
-	// Check if hyprsunset is in PATH
-	if _, err := exec.LookPath("hyprsunset"); err != nil {
-		return fmt.Errorf("hyprsunset is not found in PATH (Not installed?)")
-	}
-
-	// Check if hyprctl is in PATH
-	// I think it is possible to install hyprsunset without hyprland
-	// Could get rid of this section if you cannot
-	if _, err := exec.LookPath("hyprctl"); err != nil {
-		return fmt.Errorf("hyprctl is not found in PATH (Not installed?)")
-	}
-
-	if _, err := exec.LookPath("systemctl"); err != nil {
-		return fmt.Errorf("systemctl is not found in PATH (Not installed?)")
+	// hyprctl is checked because hyprsunset may be installed without Hyprland.
+	for _, bin := range []string{"hyprsunset", "hyprctl", "systemctl"} {
+		if _, err := exec.LookPath(bin); err != nil {
+			return fmt.Errorf("%s not found in PATH", bin)
+		}
 	}
 
 	return nil

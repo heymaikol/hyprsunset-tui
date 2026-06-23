@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 )
 
 const hyprsunsetConfigPath = "hypr/hyprsunset.conf"
@@ -26,7 +25,7 @@ func defaultHyprsunsetProfile() hyprsunsetProfile {
 	}
 }
 
-func loadHyprsunsetProfile(now time.Time) (hyprsunsetProfile, error) {
+func loadHyprsunsetProfile() (hyprsunsetProfile, error) {
 	// Gets the configuration path
 	configPath, err := os.UserConfigDir()
 	if err != nil {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -46,7 +45,7 @@ type model struct {
 }
 
 func initialModel() model {
-	profile, err := loadHyprsunsetProfile(time.Now())
+	profile, err := loadHyprsunsetProfile()
 	m := model{
 		temp:     profile.temperature,
 		gamma:    profile.gamma,

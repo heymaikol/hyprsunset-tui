@@ -20,6 +20,6 @@ Applying needs the `hyprsunset` daemon running (`hyprsunset &`). The UI works wi
 ## Layout
 
 - `tui.go` — Bubble Tea TUI (Model/Update/View), editable fields, key bindings.
-- `hyprsunset.go` — runtime IPC seam (`SetTemperature`, `SetGamma`, `Identity`, `Reset`); shells out to `hyprctl` today, swap for a socket client later.
+- `hyprsunset.go` — runtime IPC seam (`SetTemperature`, `SetGamma`); shells out to `hyprctl` today, swap for a socket client later.
 
 Built on [Bubble Tea](https://github.com/charmbracelet/bubbletea). Other TUI approaches were prototyped on `tui/*` branches.

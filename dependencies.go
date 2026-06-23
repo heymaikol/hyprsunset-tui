@@ -18,6 +18,10 @@ func CheckDependencies() error {
 		return fmt.Errorf("hyprctl is not found in PATH (Not installed?)")
 	}
 
+	if _, err := exec.LookPath("systemctl"); err != nil {
+		return fmt.Errorf("systemctl is not found in PATH (Not installed?)")
+	}
+
 	return nil
 }
 

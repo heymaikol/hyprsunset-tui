@@ -13,9 +13,9 @@ go build -o hyprsunset-controller .
 ./hyprsunset-controller        # or: go run .
 ```
 
-Keys: `tab` switch panel · `←/→` adjust · `↓/↑` select · `a`/`enter` apply · `q` quit.
+Keys: `tab` switch panel · `space` toggle enabled · `←/→` adjust · `↓/↑` select · `a`/`enter` apply · `q` quit.
 
-Applying needs the `hyprsunset` daemon running (`hyprsunset &`). The UI works without it; `apply` just reports an error.
+The Enabled checkbox controls `hyprsunset.service` through `systemctl --user`. Applying temperature and gamma still uses `hyprctl hyprsunset ...`, so the service must be active for changes to apply.
 
 ## Layout
 

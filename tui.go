@@ -41,6 +41,7 @@ type model struct {
 	focusedPanel panel
 	time         string
 	identity     bool
+	enabled      bool
 	status       string
 	statusErr    bool
 }
@@ -64,6 +65,13 @@ func initialModel() model {
 		m.status = "config: " + err.Error()
 		m.statusErr = true
 	}
+	enabled, err := IsHyprsunsetRunning()
+	if err != nil {
+		m.status = "systemd: " + err.Error()
+		m.statusErr = true
+	} else {
+		m.enabled = enabled
+	}
 	return m
 }
 
@@ -73,6 +81,12 @@ func (m model) Init() tea.Cmd { return nil }
 type appliedMsg struct {
 	text  string
 	isErr bool
+}
+
+type enabledMsg struct {
+	enabled bool
+	text    string
+	isErr   bool
 }
 
 func applyCmd(temp int, gamma float32) tea.Cmd {
@@ -87,9 +101,27 @@ func applyCmd(temp int, gamma float32) tea.Cmd {
 	}
 }
 
+func setEnabledCmd(enabled bool) tea.Cmd {
+	return func() tea.Msg {
+		if err := SetHyprsunsetRunning(enabled); err != nil {
+			return enabledMsg{enabled: !enabled, text: "enabled: " + err.Error(), isErr: true}
+		}
+		state := "disabled"
+		if enabled {
+			state = "enabled"
+		}
+		return enabledMsg{enabled: enabled, text: "hyprsunset " + state, isErr: false}
+	}
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case appliedMsg:
+		m.status, m.statusErr = msg.text, msg.isErr
+	case enabledMsg:
+		if !msg.isErr {
+			m.enabled = msg.enabled
+		}
 		m.status, m.statusErr = msg.text, msg.isErr
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -111,15 +143,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "left":
 			if m.focusedPanel != advancedPanel {
+				if m.focusedPanel == commonPanel && m.enabled {
+					return m, setEnabledCmd(false)
+				}
 				break
 			}
 			fields[m.cursor].adjust(&m, -1)
 		case "right":
 			if m.focusedPanel != advancedPanel {
+				if m.focusedPanel == commonPanel && !m.enabled {
+					return m, setEnabledCmd(true)
+				}
 				break
 			}
 			fields[m.cursor].adjust(&m, 1)
-		case "a", "enter":
+		case " ", "x":
+			if m.focusedPanel == commonPanel {
+				return m, setEnabledCmd(!m.enabled)
+			}
+		case "enter":
+			return m, applyCmd(m.temp, m.gamma)
+		case "a":
 			return m, applyCmd(m.temp, m.gamma)
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
@@ -206,14 +250,21 @@ func (m model) View() string {
 		fmt.Fprintf(&adv, "%s%s: %s\n", prefix, f.label, valStyle.Render(f.render(m)))
 	}
 
-	// Common is intentionally empty for now; blank lines keep panel heights aligned.
-	common := renderBox("Common", strings.Repeat("\n", len(fields)-1), m.focusedPanel == commonPanel)
+	checkbox := "[ ]"
+	if m.enabled {
+		checkbox = "[x]"
+	}
+	commonBody := fmt.Sprintf("> %s Enabled\n%s", checkbox, strings.Repeat("\n", len(fields)-2))
+	if m.focusedPanel != commonPanel {
+		commonBody = fmt.Sprintf("  %s Enabled\n%s", checkbox, strings.Repeat("\n", len(fields)-2))
+	}
+	common := renderBox("Common", commonBody, m.focusedPanel == commonPanel)
 	advanced := renderBox("Advanced", strings.TrimRight(adv.String(), "\n"), m.focusedPanel == advancedPanel)
 	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, common, "  ", advanced))
 	b.WriteByte('\n')
 
 	fmt.Fprintf(&b, "\n%s\n", dimStyle.Render("[tab] panel   [↑/↓] select   [←/→] adjust"))
-	fmt.Fprintf(&b, "%s\n", dimStyle.Render("[a/enter] apply   [q] quit"))
+	fmt.Fprintf(&b, "%s\n", dimStyle.Render("[space] enable   [a/enter] apply   [q] quit"))
 	if m.status != "" {
 		style := dimStyle
 		if m.statusErr {

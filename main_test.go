@@ -87,6 +87,7 @@ func TestViewShowsProfileFields(t *testing.T) {
 		gamma:    1.0,
 		time:     "07:00",
 		identity: true,
+		enabled:  true,
 	}.View()
 
 	if !strings.Contains(view, "Time:") || !strings.Contains(view, "07:00") {
@@ -94,6 +95,39 @@ func TestViewShowsProfileFields(t *testing.T) {
 	}
 	if !strings.Contains(view, "Identity:") || !strings.Contains(view, "true") {
 		t.Fatalf("View() = %q, want identity", view)
+	}
+	if !strings.Contains(view, "[x] Enabled") {
+		t.Fatalf("View() = %q, want enabled checkbox", view)
+	}
+}
+
+func TestEnabledCheckboxTogglesHyprsunsetService(t *testing.T) {
+	binDir := t.TempDir()
+	argsFile := filepath.Join(t.TempDir(), "systemctl-args")
+	t.Setenv("PATH", binDir)
+	t.Setenv("SYSTEMCTL_ARGS_FILE", argsFile)
+	writeExecutable(t, binDir, "systemctl", "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$SYSTEMCTL_ARGS_FILE\"\nexit 0\n")
+
+	m := model{focusedPanel: commonPanel}
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeySpace})
+	if cmd == nil {
+		t.Fatal("Update(space) cmd = nil, want systemctl command")
+	}
+
+	msg := cmd()
+	next, _ = next.(model).Update(msg)
+	got := next.(model)
+	if !got.enabled {
+		t.Fatal("enabled = false, want true")
+	}
+
+	gotBytes, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatalf("read systemctl args: %v", err)
+	}
+	want := "--user\nstart\nhyprsunset.service\n"
+	if string(gotBytes) != want {
+		t.Fatalf("systemctl args = %q, want %q", gotBytes, want)
 	}
 }
 
@@ -179,6 +213,7 @@ func TestCheckDependencies(t *testing.T) {
 		binDir := t.TempDir()
 		writeExecutable(t, binDir, "hyprsunset", "#!/bin/sh\nexit 0\n")
 		writeExecutable(t, binDir, "hyprctl", "#!/bin/sh\nexit 0\n")
+		writeExecutable(t, binDir, "systemctl", "#!/bin/sh\nexit 0\n")
 		t.Setenv("PATH", binDir)
 
 		if err := CheckDependencies(); err != nil {
@@ -211,6 +246,51 @@ func TestCheckDependencies(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "hyprctl") {
 			t.Fatalf("CheckDependencies() error = %q, want hyprctl", err)
+		}
+	})
+
+	t.Run("missing systemctl", func(t *testing.T) {
+		binDir := t.TempDir()
+		writeExecutable(t, binDir, "hyprsunset", "#!/bin/sh\nexit 0\n")
+		writeExecutable(t, binDir, "hyprctl", "#!/bin/sh\nexit 0\n")
+		t.Setenv("PATH", binDir)
+
+		err := CheckDependencies()
+		if err == nil {
+			t.Fatal("CheckDependencies() error = nil, want missing systemctl error")
+		}
+		if !strings.Contains(err.Error(), "systemctl") {
+			t.Fatalf("CheckDependencies() error = %q, want systemctl", err)
+		}
+	})
+}
+
+func TestIsHyprsunsetRunning(t *testing.T) {
+	t.Run("active", func(t *testing.T) {
+		binDir := t.TempDir()
+		writeExecutable(t, binDir, "systemctl", "#!/bin/sh\necho active\nexit 0\n")
+		t.Setenv("PATH", binDir)
+
+		running, err := IsHyprsunsetRunning()
+		if err != nil {
+			t.Fatalf("IsHyprsunsetRunning() error = %v", err)
+		}
+		if !running {
+			t.Fatal("IsHyprsunsetRunning() = false, want true")
+		}
+	})
+
+	t.Run("inactive", func(t *testing.T) {
+		binDir := t.TempDir()
+		writeExecutable(t, binDir, "systemctl", "#!/bin/sh\necho inactive\nexit 3\n")
+		t.Setenv("PATH", binDir)
+
+		running, err := IsHyprsunsetRunning()
+		if err != nil {
+			t.Fatalf("IsHyprsunsetRunning() error = %v", err)
+		}
+		if running {
+			t.Fatal("IsHyprsunsetRunning() = true, want false")
 		}
 	})
 }

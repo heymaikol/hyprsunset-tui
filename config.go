@@ -93,18 +93,6 @@ func saveHyprsunsetProfiles(profiles []hyprsunsetProfile) error {
 	return os.WriteFile(path, content, mode)
 }
 
-// formatHyprsunsetProfile renders a profile as a hyprsunset config block
-func formatHyprsunsetProfile(profile hyprsunsetProfile) []byte {
-	var b bytes.Buffer
-	fmt.Fprintln(&b, "profile {")
-	fmt.Fprintf(&b, "    time = %s\n", profile.time)
-	fmt.Fprintf(&b, "    identity = %t\n", profile.identity)
-	fmt.Fprintf(&b, "    temperature = %d\n", profile.temperature)
-	fmt.Fprintf(&b, "    gamma = %.1f\n", profile.gamma)
-	fmt.Fprintln(&b, "}")
-	return b.Bytes()
-}
-
 // formatHyprsunsetProfiles renders profiles as config blocks, blank-line separated
 func formatHyprsunsetProfiles(profiles []hyprsunsetProfile) []byte {
 	var b bytes.Buffer
@@ -112,7 +100,12 @@ func formatHyprsunsetProfiles(profiles []hyprsunsetProfile) []byte {
 		if i > 0 {
 			b.WriteByte('\n')
 		}
-		b.Write(formatHyprsunsetProfile(profile))
+		fmt.Fprintln(&b, "profile {")
+		fmt.Fprintf(&b, "    time = %s\n", profile.time)
+		fmt.Fprintf(&b, "    identity = %t\n", profile.identity)
+		fmt.Fprintf(&b, "    temperature = %d\n", profile.temperature)
+		fmt.Fprintf(&b, "    gamma = %.1f\n", profile.gamma)
+		fmt.Fprintln(&b, "}")
 	}
 	return b.Bytes()
 }

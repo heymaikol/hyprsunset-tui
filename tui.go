@@ -33,6 +33,7 @@ type model struct {
 	profiles      []hyprsunsetProfile // all profiles, editable in the Advanced panel
 	selected      int                 // index of the profile being edited
 	cursor        int                 // selected row in the Advanced panel
+	simpleCursor  int                 // selected cell in the Simple panel (0 = Enabled, then Day/Night)
 	focusAdvanced bool                // true when the Advanced panel has focus
 	enabled       bool                // is hyprsunset currently running
 	status        string              // status line text
@@ -135,31 +136,35 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "tab", "shift+tab":
 			m.focusAdvanced = !m.focusAdvanced
 		case "up":
-			// Up/down only move the cursor in the Advanced panel
-			if !m.focusAdvanced {
-				break
-			}
-			if m.cursor > 0 {
-				m.cursor--
+			// Move the cursor in whichever panel has focus
+			if m.focusAdvanced {
+				if m.cursor > 0 {
+					m.cursor--
+				}
+			} else if m.simpleCursor > 0 {
+				m.simpleCursor--
 			}
 		case "down":
-			if !m.focusAdvanced {
-				break
-			}
-			if m.cursor < len(fields)-1 {
-				m.cursor++
+			if m.focusAdvanced {
+				if m.cursor < len(fields)-1 {
+					m.cursor++
+				}
+			} else if m.simpleCursor < m.simpleCellCount()-1 {
+				m.simpleCursor++
 			}
 		case "left":
-			// Arrows only adjust fields in the Advanced panel
-			if !m.focusAdvanced {
-				break
+			// Arrows adjust the focused field in either panel
+			if m.focusAdvanced {
+				fields[m.cursor].adjust(&m, -1)
+			} else {
+				m.adjustSimple(-1)
 			}
-			fields[m.cursor].adjust(&m, -1)
 		case "right":
-			if !m.focusAdvanced {
-				break
+			if m.focusAdvanced {
+				fields[m.cursor].adjust(&m, 1)
+			} else {
+				m.adjustSimple(1)
 			}
-			fields[m.cursor].adjust(&m, 1)
 		case "backspace":
 			// Clear the selected attribute so it's omitted from the saved
 			// config; |= 0 is a no-op on the Profile selector. Re-add with ←/→.
@@ -267,6 +272,50 @@ var fields = []field{
 // Profile selector (first) and the global Max Gamma (last), reused by the
 // Configuration diff box
 var profileFields = fields[1 : len(fields)-1]
+
+// simpleProfileFields are the Day/Night rows shown in the Simple panel:
+// schedule time and the two colour knobs. Identity is Advanced-only, so it's
+// filtered out.
+var simpleProfileFields = func() []field {
+	out := make([]field, 0, len(profileFields))
+	for _, f := range profileFields {
+		if f.bit != identityBit {
+			out = append(out, f)
+		}
+	}
+	return out
+}()
+
+// simpleRows is how many Day/Night rows the Simple panel shows: one per
+// profile, capped at two (Day, Night). Extra profiles live in Advanced.
+func (m model) simpleRows() int { return min(len(m.profiles), 2) }
+
+// simpleCellCount is the number of navigable cells in the Simple panel: the
+// Enabled toggle plus the cells of each shown profile.
+func (m model) simpleCellCount() int { return 1 + m.simpleRows()*len(simpleProfileFields) }
+
+// simpleCell maps the Simple panel cursor to the (profile, field) it edits.
+// Cursor 0 is the Enabled toggle, so ok is false there.
+func simpleCell(cursor int) (profileIdx, fieldIdx int, ok bool) {
+	if cursor <= 0 {
+		return 0, 0, false
+	}
+	i := cursor - 1
+	return i / len(simpleProfileFields), i % len(simpleProfileFields), true
+}
+
+// adjustSimple changes the focused Day/Night cell by dir, reusing the Advanced
+// field adjusters (which operate on m.selected). No-op on the Enabled toggle.
+func (m *model) adjustSimple(dir int) {
+	profileIdx, fieldIdx, ok := simpleCell(m.simpleCursor)
+	if !ok || profileIdx >= len(m.profiles) {
+		return
+	}
+	saved := m.selected
+	m.selected = profileIdx
+	simpleProfileFields[fieldIdx].adjust(m, dir)
+	m.selected = saved
+}
 
 // adjustTime shifts "H:MM" by deltaMin, wrapping within a day
 func adjustTime(s string, deltaMin int) string {

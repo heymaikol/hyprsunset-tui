@@ -11,6 +11,7 @@ import (
 var (
 	titleStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214")) // app title (orange)
 	valStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("81"))  // current values (cyan)
+	focusStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214")) // focused Simple cell (orange)
 	dimStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))            // help text / old values (grey)
 	errStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))            // error status (red)
 )
@@ -47,6 +48,59 @@ func renderBox(title, body string, focused bool) string {
 	return strings.Join(lines, "\n")
 }
 
+// profileLabel names a profile by its day/night role; profile 0 is Day, 1 is
+// Night, and any extras (managed in the Advanced panel) keep a numbered label.
+func profileLabel(i int) string {
+	switch i {
+	case 0:
+		return "Day"
+	case 1:
+		return "Night"
+	default:
+		return fmt.Sprintf("Profile %d", i+1)
+	}
+}
+
+// simpleBody renders the Simple panel: the Enabled toggle plus, once a
+// Day/Night cycle exists, an editable row per profile. The focused cell is
+// highlighted while the Simple panel has focus.
+func simpleBody(m model) string {
+	focused := !m.focusAdvanced
+	fp, ff, cellOk := simpleCell(m.simpleCursor)
+
+	var b strings.Builder
+	// Enabled toggle (cursor 0)
+	checkbox := "[ ]"
+	if m.enabled {
+		checkbox = "[x]"
+	}
+	prefix := "  "
+	if focused && m.simpleCursor == 0 {
+		prefix = "> "
+	}
+	fmt.Fprintf(&b, "%s%s Enabled", prefix, checkbox)
+
+	for p := 0; p < m.simpleRows(); p++ {
+		if p == 0 {
+			b.WriteByte('\n') // blank line between Enabled and the first row
+		}
+		rowPrefix := "  "
+		if focused && cellOk && fp == p {
+			rowPrefix = "> "
+		}
+		view := model{profiles: []hyprsunsetProfile{m.profiles[p]}}
+		fmt.Fprintf(&b, "\n%s%-6s", rowPrefix, profileLabel(p))
+		for fi, f := range simpleProfileFields {
+			style := valStyle
+			if focused && cellOk && fp == p && ff == fi {
+				style = focusStyle
+			}
+			fmt.Fprintf(&b, "  %s", style.Render(f.render(view)))
+		}
+	}
+	return b.String()
+}
+
 // View renders the whole UI: title, Simple/Advanced panels, Configuration diff, and help
 func (m model) View() string {
 	var b strings.Builder
@@ -62,17 +116,7 @@ func (m model) View() string {
 		fmt.Fprintf(&adv, "%s%s: %s\n", prefix, f.label, valStyle.Render(f.render(m)))
 	}
 
-	// Simple panel: a single enabled checkbox
-	checkbox := "[ ]"
-	if m.enabled {
-		checkbox = "[x]"
-	}
-	commonPrefix := "> " // cursor marker, only shown when the panel is focused
-	if m.focusAdvanced {
-		commonPrefix = "  "
-	}
-	commonBody := fmt.Sprintf("%s%s Enabled", commonPrefix, checkbox)
-	common := renderBox("Simple", commonBody, !m.focusAdvanced)
+	common := renderBox("Simple", simpleBody(m), !m.focusAdvanced)
 	advanced := renderBox("Advanced", strings.TrimRight(adv.String(), "\n"), m.focusAdvanced)
 	left := lipgloss.JoinVertical(lipgloss.Left, common, advanced) // stack the two left-column boxes
 
@@ -93,7 +137,7 @@ func (m model) View() string {
 		if i > 0 {
 			prof.WriteByte('\n')
 		}
-		fmt.Fprintf(&prof, "%s\n", dimStyle.Render(fmt.Sprintf("Profile %d", i+1)))
+		fmt.Fprintf(&prof, "%s\n", dimStyle.Render(profileLabel(i)))
 		live := model{profiles: m.profiles, selected: i}
 		hasBaseline := i < len(m.saved)
 		old := model{profiles: m.saved, selected: i}
@@ -122,7 +166,7 @@ func (m model) View() string {
 	b.WriteByte('\n')
 
 	// Two-line key hint footer; first line depends on the focused panel
-	directions := "[tab] panel   [space] toggle"
+	directions := "[tab] panel   [↑/↓] select   [←/→] adjust   [space] toggle"
 	if m.focusAdvanced {
 		directions = "[tab] panel   [↑/↓] select   [←/→] adjust   [bksp] clear   [n] new   [d] del"
 	}

@@ -249,7 +249,7 @@ var fields = []field{
 	// Identity: boolean toggle; direction is ignored
 	{"Identity", identityBit, func(m model) string {
 		return shown(m, identityBit, func() string { return strconv.FormatBool(m.current().identity) })
-	}, func(m *model, d int) {
+	}, func(m *model, _ int) {
 		edit(m, identityBit, func() { m.current().identity = !m.current().identity })
 	}},
 	// Temperature: step by tempStep K, clamped to [tempMin, tempMax]
@@ -280,9 +280,10 @@ var profileFields = fields[1 : len(fields)-1]
 
 // adjustTime shifts "H:MM" by deltaMin, wrapping within a day
 func adjustTime(s string, deltaMin int) string {
-	var h, min int
-	fmt.Sscanf(s, "%d:%d", &h, &min) // parse hours and minutes
+	var h, mins int
+	// Sscanf failure leaves h/mins at 0 — fine fallback for a malformed time
+	_, _ = fmt.Sscanf(s, "%d:%d", &h, &mins)
 	// Convert to minutes, apply delta, wrap into [0,1440); double mod handles negatives
-	t := ((h*60+min+deltaMin)%1440 + 1440) % 1440
+	t := ((h*60+mins+deltaMin)%1440 + 1440) % 1440
 	return fmt.Sprintf("%02d:%02d", t/60, t%60) // back to "HH:MM"
 }

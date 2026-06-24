@@ -1,3 +1,4 @@
+// Package main implements a Bubble Tea TUI for controlling hyprsunset.
 package main
 
 import (

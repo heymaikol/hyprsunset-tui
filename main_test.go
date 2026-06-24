@@ -16,7 +16,7 @@ func TestCursorAdjustsSelectedField(t *testing.T) {
 		return next.(model)
 	}
 
-	m := model{profiles: []hyprsunsetProfile{{time: "12:00", identity: false, temperature: 6000, gamma: 1.0}}}
+	m := model{focusAdvanced: true, profiles: []hyprsunsetProfile{{time: "12:00", identity: false, temperature: 6000, gamma: 1.0}}}
 
 	// cursor 0 = Profile selector; down to Time
 	m = step(step(m, tea.KeyDown), tea.KeyLeft)
@@ -49,25 +49,29 @@ func TestTabSwitchesBetweenPanels(t *testing.T) {
 
 	m := model{profiles: []hyprsunsetProfile{{time: "12:00", identity: false, temperature: 6000, gamma: 1.0}}}
 
-	m = step(m, tea.KeyTab)
-	if m.focusedPanel != commonPanel {
-		t.Fatalf("focusedPanel = %v, want commonPanel", m.focusedPanel)
+	if m.focusAdvanced {
+		t.Fatal("focusAdvanced = true, want false")
 	}
 
 	m = step(m, tea.KeyLeft)
 	if m.current().time != "12:00" {
-		t.Fatalf("time changed while Common focused: got %q, want 12:00", m.current().time)
+		t.Fatalf("time changed while Simple focused: got %q, want 12:00", m.current().time)
 	}
 
-	m = step(m, tea.KeyShiftTab)
-	if m.focusedPanel != advancedPanel {
-		t.Fatalf("focusedPanel = %v, want advancedPanel", m.focusedPanel)
+	m = step(m, tea.KeyTab)
+	if !m.focusAdvanced {
+		t.Fatal("focusAdvanced = false, want true")
 	}
 
 	// cursor 0 = Profile selector; down to Time, then adjust
 	m = step(step(m, tea.KeyDown), tea.KeyLeft)
 	if m.current().time != "11:45" {
 		t.Fatalf("time = %q, want 11:45", m.current().time)
+	}
+
+	m = step(m, tea.KeyShiftTab)
+	if m.focusAdvanced {
+		t.Fatal("focusAdvanced = true, want false")
 	}
 }
 
@@ -78,8 +82,8 @@ func TestInitialModelStartsOnSimplePanel(t *testing.T) {
 	writeExecutable(t, binDir, "pgrep", "#!/bin/sh\nexit 1\n")
 
 	m := initialModel()
-	if m.focusedPanel != commonPanel {
-		t.Fatalf("focusedPanel = %v, want commonPanel", m.focusedPanel)
+	if m.focusAdvanced {
+		t.Fatal("focusAdvanced = true, want false")
 	}
 }
 
@@ -90,8 +94,8 @@ func TestProfileAddDeleteKeys(t *testing.T) {
 	}
 
 	m := model{
-		focusedPanel: advancedPanel,
-		profiles:     []hyprsunsetProfile{{time: "07:00", temperature: 6000, gamma: 1.0}},
+		focusAdvanced: true,
+		profiles:      []hyprsunsetProfile{{time: "07:00", temperature: 6000, gamma: 1.0}},
 	}
 
 	// 'n' appends a default profile and selects it
@@ -116,7 +120,7 @@ func TestProfileAddDeleteKeys(t *testing.T) {
 	}
 
 	// 'n' is ignored when the Simple panel is focused
-	common := model{focusedPanel: commonPanel, profiles: []hyprsunsetProfile{{}}}
+	common := model{profiles: []hyprsunsetProfile{{}}}
 	if got := step(common, 'n'); len(got.profiles) != 1 {
 		t.Fatalf("n on Simple panel: len=%d, want 1", len(got.profiles))
 	}
@@ -129,8 +133,8 @@ func TestBackspaceClearsAndReaddsField(t *testing.T) {
 	}
 
 	m := model{
-		focusedPanel: advancedPanel,
-		profiles:     []hyprsunsetProfile{{time: "12:00", temperature: 6000, gamma: 1.0}},
+		focusAdvanced: true,
+		profiles:      []hyprsunsetProfile{{time: "12:00", temperature: 6000, gamma: 1.0}},
 	}
 
 	// Profile=0, Time=1, Identity=2, Temperature=3
@@ -152,7 +156,7 @@ func TestBackspaceClearsAndReaddsField(t *testing.T) {
 	}
 
 	// Profile selector (bit 0) is not clearable
-	top := model{focusedPanel: advancedPanel, profiles: []hyprsunsetProfile{{}, {}}}
+	top := model{focusAdvanced: true, profiles: []hyprsunsetProfile{{}, {}}}
 	if got := step(top, tea.KeyBackspace); got.current().unset != 0 {
 		t.Fatalf("backspace on Profile selector set unset = %b, want 0", got.current().unset)
 	}
@@ -235,7 +239,7 @@ func TestSpaceTogglesSimpleCheckbox(t *testing.T) {
 	writeExecutable(t, binDir, "hyprctl", "#!/bin/sh\nexit 0\n")
 	writeExecutable(t, binDir, "pkill", "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$PKILL_ARGS_FILE\"\nexit 0\n")
 
-	m := model{focusedPanel: commonPanel}
+	m := model{}
 	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}})
 	if cmd == nil {
 		t.Fatal("Update(space) cmd = nil, want toggle command")

@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"fmt"
+	"slices"
 	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -43,7 +44,7 @@ func (m *model) current() *hyprsunsetProfile { return &m.profiles[m.selected] }
 // cloneProfiles copies a profile slice; profiles are flat value structs, so a
 // fresh backing array fully detaches it (used for the diff baseline)
 func cloneProfiles(profiles []hyprsunsetProfile) []hyprsunsetProfile {
-	return append([]hyprsunsetProfile(nil), profiles...)
+	return slices.Clone(profiles)
 }
 
 // panel identifies a focusable region of the UI

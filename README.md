@@ -13,13 +13,15 @@ go build -o hyprsunset-controller .
 ./hyprsunset-controller        # or: go run .
 ```
 
-Keys: `tab` switch panel · `space` toggle enabled · `←/→` adjust · `↓/↑` select · `enter` apply · `s` save · `q` quit.
+Keys: `tab` switch panel · `space` toggle enabled · `←/→` adjust · `↓/↑` select · `backspace` clear field · `n` new profile · `d` delete profile · `s` save · `q` quit.
 
-The Enabled checkbox launches `hyprsunset` through `uwsm app` and stops it by terminating the `hyprsunset` process. Applying temperature and gamma still uses `hyprctl hyprsunset ...`, so `hyprsunset` must be running for changes to apply.
+The Enabled checkbox launches `hyprsunset` through `uwsm app` and stops it by terminating the `hyprsunset` process. Temperature, gamma, and the other fields are written to the config with `s`; the running `hyprsunset` daemon reads the config and applies the profile matching the current time.
 
 ## Layout
 
-- `tui.go` — Bubble Tea TUI (Model/Update/View), editable fields, key bindings.
-- `hyprsunset.go` — runtime IPC seam (`SetTemperature`, `SetGamma`); shells out to `hyprctl` today, swap for a socket client later.
+- `tui.go` — Bubble Tea Model/Update, editable fields, key bindings.
+- `view.go` — terminal rendering.
+- `config.go` — profile parsing and persistence (`~/.config/hypr/hyprsunset.conf`).
+- `hyprsunset.go` — daemon control (`SetHyprsunsetRunning`, `IsHyprsunsetRunning`) via `uwsm app`, `pgrep`, and `pkill`.
 
 Built on [Bubble Tea](https://github.com/charmbracelet/bubbletea). Other TUI approaches were prototyped on `tui/*` branches.

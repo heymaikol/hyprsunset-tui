@@ -56,7 +56,7 @@ func (m model) View() string {
 	var adv strings.Builder
 	for i, f := range fields {
 		prefix := "  "
-		if m.focusedPanel == advancedPanel && m.cursor == i {
+		if m.focusAdvanced && m.cursor == i {
 			prefix = "> "
 		}
 		fmt.Fprintf(&adv, "%s%s: %s\n", prefix, f.label, valStyle.Render(f.render(m)))
@@ -68,12 +68,12 @@ func (m model) View() string {
 		checkbox = "[x]"
 	}
 	commonPrefix := "> " // cursor marker, only shown when the panel is focused
-	if m.focusedPanel != commonPanel {
+	if m.focusAdvanced {
 		commonPrefix = "  "
 	}
 	commonBody := fmt.Sprintf("%s%s Enabled", commonPrefix, checkbox)
-	common := renderBox("Simple", commonBody, m.focusedPanel == commonPanel)
-	advanced := renderBox("Advanced", strings.TrimRight(adv.String(), "\n"), m.focusedPanel == advancedPanel)
+	common := renderBox("Simple", commonBody, !m.focusAdvanced)
+	advanced := renderBox("Advanced", strings.TrimRight(adv.String(), "\n"), m.focusAdvanced)
 	left := lipgloss.JoinVertical(lipgloss.Left, common, advanced) // stack the two left-column boxes
 
 	// Configuration box: list every profile, diffing live values against the
@@ -123,7 +123,7 @@ func (m model) View() string {
 
 	// Two-line key hint footer; first line depends on the focused panel
 	directions := "[tab] panel   [space] toggle"
-	if m.focusedPanel == advancedPanel {
+	if m.focusAdvanced {
 		directions = "[tab] panel   [↑/↓] select   [←/→] adjust   [bksp] clear   [n] new   [d] del"
 	}
 	fmt.Fprintf(&b, "\n%s\n", dimStyle.Render(directions))

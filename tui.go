@@ -33,7 +33,7 @@ type model struct {
 	profiles      []hyprsunsetProfile // all profiles, editable in the Advanced panel
 	selected      int                 // index of the profile being edited
 	cursor        int                 // selected row in the Advanced panel
-	focusedPanel  panel               // which panel has focus
+	focusAdvanced bool                // true when the Advanced panel has focus
 	enabled       bool                // is hyprsunset currently running
 	status        string              // status line text
 	statusErr     bool                // render status as an error
@@ -44,14 +44,6 @@ type model struct {
 
 // current returns a pointer to the profile being edited
 func (m *model) current() *hyprsunsetProfile { return &m.profiles[m.selected] }
-
-// panel identifies a focusable region of the UI
-type panel int
-
-const (
-	advancedPanel panel = iota // editable field list
-	commonPanel                // simple enable/disable toggle
-)
 
 // initialModel builds the starting state from the on-disk profiles and the
 // live hyprsunset status, falling back to defaults on error
@@ -65,7 +57,6 @@ func initialModel() model {
 	// Seed the model from the profiles, start focused on the Simple panel
 	m := model{
 		profiles:      profiles,
-		focusedPanel:  commonPanel,
 		saved:         slices.Clone(profiles),
 		maxGamma:      maxGamma,
 		savedMaxGamma: maxGamma,
@@ -142,18 +133,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "tab", "shift+tab":
-			// Toggle between the two panels (0<->1)
-			m.focusedPanel = commonPanel - m.focusedPanel
+			m.focusAdvanced = !m.focusAdvanced
 		case "up":
 			// Up/down only move the cursor in the Advanced panel
-			if m.focusedPanel != advancedPanel {
+			if !m.focusAdvanced {
 				break
 			}
 			if m.cursor > 0 {
 				m.cursor--
 			}
 		case "down":
-			if m.focusedPanel != advancedPanel {
+			if !m.focusAdvanced {
 				break
 			}
 			if m.cursor < len(fields)-1 {
@@ -161,32 +151,32 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "left":
 			// Arrows only adjust fields in the Advanced panel
-			if m.focusedPanel != advancedPanel {
+			if !m.focusAdvanced {
 				break
 			}
 			fields[m.cursor].adjust(&m, -1)
 		case "right":
-			if m.focusedPanel != advancedPanel {
+			if !m.focusAdvanced {
 				break
 			}
 			fields[m.cursor].adjust(&m, 1)
 		case "backspace":
 			// Clear the selected attribute so it's omitted from the saved
 			// config; |= 0 is a no-op on the Profile selector. Re-add with ←/→.
-			if m.focusedPanel != advancedPanel {
+			if !m.focusAdvanced {
 				break
 			}
 			m.current().unset |= fields[m.cursor].bit
 		case "n":
 			// New profile (Advanced only): append a default and select it
-			if m.focusedPanel != advancedPanel {
+			if !m.focusAdvanced {
 				break
 			}
 			m.profiles = append(m.profiles, defaultHyprsunsetProfile())
 			m.selected = len(m.profiles) - 1
 		case "d":
 			// Delete the selected profile (Advanced only); keep at least one
-			if m.focusedPanel != advancedPanel {
+			if !m.focusAdvanced {
 				break
 			}
 			if len(m.profiles) == 1 {
@@ -196,7 +186,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.profiles = append(m.profiles[:m.selected], m.profiles[m.selected+1:]...)
 			m.selected = clamp(m.selected, 0, len(m.profiles)-1)
 		case " ":
-			if m.focusedPanel == commonPanel {
+			if !m.focusAdvanced {
 				return m, setEnabledCmd(!m.enabled)
 			}
 		case "s":

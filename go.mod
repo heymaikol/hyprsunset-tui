@@ -1,4 +1,4 @@
-module hyprsunset-controller
+module hstui
 
 go 1.26.4
 

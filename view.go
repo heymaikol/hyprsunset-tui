@@ -104,7 +104,7 @@ func simpleBody(m model) string {
 // View renders the whole UI: title, Simple/Advanced panels, Configuration diff, and help
 func (m model) View() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s\n\n", titleStyle.Render("hyprsunset-controller"))
+	fmt.Fprintf(&b, "%s\n\n", titleStyle.Render("hstui"))
 
 	// Build the Advanced panel body, marking the selected row with "> "
 	var adv strings.Builder

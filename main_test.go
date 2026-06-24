@@ -667,7 +667,7 @@ func TestNotify(t *testing.T) {
 			t.Fatalf("read notify args: %v", err)
 		}
 
-		want := "-a\nhyprsunset-controller\n-u\ncritical\nhyprsunset-controller\nbody\n"
+		want := "-a\nhstui\n-u\ncritical\nhstui\nbody\n"
 		if got := string(gotBytes); got != want {
 			t.Fatalf("notify-send args = %q, want %q", got, want)
 		}

@@ -19,9 +19,9 @@ func CheckDependencies() error {
 func Notify(body string) error {
 	return exec.Command(
 		"notify-send",
-		"-a", "hyprsunset-controller",
+		"-a", "hstui",
 		"-u", "critical",
-		"hyprsunset-controller",
+		"hstui",
 		body,
 	).Run()
 }

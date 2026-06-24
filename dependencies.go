@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os/exec"
 )
@@ -18,12 +17,6 @@ func CheckDependencies() error {
 }
 
 func Notify(body string) error {
-	// Check if notify-send is in the PATH
-	if _, err := exec.LookPath("notify-send"); err != nil {
-		return errors.New("notify-send is not found in PATH (Not installed?)")
-	}
-
-	// This runs the notify-send command
 	return exec.Command(
 		"notify-send",
 		"-a", "hyprsunset-controller",

@@ -103,7 +103,7 @@ func (m model) View() string {
 			// Show "old → new" when the live value differs from disk
 			if hasBaseline {
 				if was := f.render(old); cur != was {
-					val = dimStyle.Render(was) + " → " + valStyle.Render(cur)
+					val = dimStyle.Render(was) + " → " + val
 				}
 			}
 			fmt.Fprintf(&prof, "%s: %s\n", f.label, val)

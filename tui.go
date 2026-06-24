@@ -274,17 +274,8 @@ var fields = []field{
 var profileFields = fields[1 : len(fields)-1]
 
 // simpleProfileFields are the Day/Night rows shown in the Simple panel:
-// schedule time and the two colour knobs. Identity is Advanced-only, so it's
-// filtered out.
-var simpleProfileFields = func() []field {
-	out := make([]field, 0, len(profileFields))
-	for _, f := range profileFields {
-		if f.bit != identityBit {
-			out = append(out, f)
-		}
-	}
-	return out
-}()
+// schedule time and the two colour knobs. Identity is Advanced-only.
+var simpleProfileFields = slices.Concat(profileFields[:1], profileFields[2:])
 
 // simpleRows is how many Day/Night rows the Simple panel shows: one per
 // profile, capped at two (Day, Night). Extra profiles live in Advanced.

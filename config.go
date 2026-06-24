@@ -56,32 +56,34 @@ func hyprsunsetConfigFile() (string, error) {
 	return filepath.Join(configPath, hyprsunsetConfigPath), nil
 }
 
-// loadHyprsunsetProfiles reads and parses every on-disk profile; an empty or
-// missing block list falls back to a single default profile
-func loadHyprsunsetProfiles() ([]hyprsunsetProfile, error) {
+// loadHyprsunsetProfiles reads and parses every on-disk profile plus the global
+// max-gamma; an empty or missing block list falls back to a single default profile
+func loadHyprsunsetProfiles() ([]hyprsunsetProfile, int, error) {
 	path, err := hyprsunsetConfigFile()
 	if err != nil {
-		return nil, err
+		return nil, defaultMaxGamma, err
 	}
 
 	content, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, defaultMaxGamma, err
 	}
 
 	profiles, err := parseProfiles(content)
 	if err != nil {
-		return nil, err
+		return nil, defaultMaxGamma, err
 	}
+	maxGamma := parseMaxGamma(content)
 	if len(profiles) == 0 {
-		return []hyprsunsetProfile{defaultHyprsunsetProfile()}, nil
+		return []hyprsunsetProfile{defaultHyprsunsetProfile()}, maxGamma, nil
 	}
-	return profiles, nil
+	return profiles, maxGamma, nil
 }
 
 // saveHyprsunsetProfiles writes the profiles back, replacing all existing
-// profile blocks and preserving the file's surrounding content and perms
-func saveHyprsunsetProfiles(profiles []hyprsunsetProfile) error {
+// profile blocks and the global max-gamma, preserving the file's surrounding
+// content and perms
+func saveHyprsunsetProfiles(profiles []hyprsunsetProfile, maxGamma int) error {
 	path, err := hyprsunsetConfigFile()
 	if err != nil {
 		return err
@@ -107,7 +109,56 @@ func saveHyprsunsetProfiles(profiles []hyprsunsetProfile) error {
 		return err
 	}
 
+	content = setMaxGammaLine(content, maxGamma)
 	return os.WriteFile(path, content, mode)
+}
+
+// parseMaxGamma reads the top-level max-gamma setting; absent or invalid
+// returns the hyprsunset default
+func parseMaxGamma(content []byte) int {
+	for _, rawLine := range strings.Split(string(content), "\n") {
+		key, value, ok := strings.Cut(configLine(rawLine), "=")
+		if !ok || strings.TrimSpace(key) != "max-gamma" {
+			continue
+		}
+		if n, err := strconv.Atoi(strings.TrimSpace(value)); err == nil {
+			return n
+		}
+	}
+	return defaultMaxGamma
+}
+
+// setMaxGammaLine makes the top-level `max-gamma = N` line reflect maxGamma:
+// replaces an existing line in place, inserts one at the top when non-default,
+// otherwise leaves content untouched (keeps default configs clutter-free)
+func setMaxGammaLine(content []byte, maxGamma int) []byte {
+	line := fmt.Sprintf("max-gamma = %d", maxGamma)
+	lines := strings.SplitAfter(string(content), "\n")
+	for i, rawLine := range lines {
+		key, _, ok := strings.Cut(configLine(rawLine), "=")
+		if !ok || strings.TrimSpace(key) != "max-gamma" {
+			continue
+		}
+		// Default needs no line: drop it (and its separator blank) so the file
+		// stays clean, since absent already means 100
+		if maxGamma == defaultMaxGamma {
+			lines[i] = ""
+			if i+1 < len(lines) && strings.TrimSpace(lines[i+1]) == "" {
+				lines[i+1] = ""
+			}
+			return []byte(strings.Join(lines, ""))
+		}
+		nl := ""
+		if strings.HasSuffix(rawLine, "\n") {
+			nl = "\n"
+		}
+		lines[i] = line + nl
+		return []byte(strings.Join(lines, ""))
+	}
+	if maxGamma == defaultMaxGamma {
+		return content
+	}
+	return append([]byte(line+"\n\n"), content...)
 }
 
 // formatHyprsunsetProfiles renders profiles as config blocks, blank-line separated

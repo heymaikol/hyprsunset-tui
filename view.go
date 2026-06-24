@@ -79,6 +79,16 @@ func (m model) View() string {
 	// Configuration box: list every profile, diffing live values against the
 	// on-disk baseline (saved[i]); newly added profiles have no baseline
 	var prof strings.Builder
+	// Global max-gamma sits above the profiles, shown only when raised above the
+	// default; diffs against the on-disk baseline like the per-profile rows
+	if m.maxGamma > defaultMaxGamma {
+		cur := fmt.Sprintf("%d%%", m.maxGamma)
+		val := valStyle.Render(cur)
+		if m.savedMaxGamma != m.maxGamma {
+			val = dimStyle.Render(fmt.Sprintf("%d%%", m.savedMaxGamma)) + " → " + val
+		}
+		fmt.Fprintf(&prof, "Max Gamma: %s\n\n", val)
+	}
 	for i := range m.profiles {
 		if i > 0 {
 			prof.WriteByte('\n')

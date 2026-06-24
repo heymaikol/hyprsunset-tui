@@ -10,14 +10,16 @@ import (
 )
 
 const (
-	tempStep                 = 250         // Kelvin per left/right press on Temperature
-	gammaStep        float32 = 0.1         // gamma units per press
-	timeStep                 = 15          // minutes per press on Time
-	tempMin, tempMax         = 1000, 10000 // clamp range for temperature (K)
-	gammaMin         float32 = 0.1         // lowest allowed gamma
-	gammaMax         float32 = 2.0         // highest allowed gamma
-	neutralTemp              = 6000        // daylight-neutral temperature
-	neutralGamma     float32 = 1.0         // unadjusted gamma
+	tempStep                         = 250         // Kelvin per left/right press on Temperature
+	gammaStep                float32 = 0.1         // gamma units per press
+	timeStep                         = 15          // minutes per press on Time
+	tempMin, tempMax                 = 1000, 10000 // clamp range for temperature (K)
+	gammaMin                 float32 = 0.1         // lowest allowed gamma
+	neutralTemp                      = 6000        // daylight-neutral temperature
+	neutralGamma             float32 = 1.0         // unadjusted gamma
+	maxGammaStep                     = 10          // percent per press on Max Gamma
+	maxGammaMin, maxGammaMax         = 100, 200    // clamp range for max-gamma (%)
+	defaultMaxGamma                  = 100         // hyprsunset's default max-gamma (%)
 )
 
 // Returns lo if v is below it
@@ -28,14 +30,16 @@ func clamp[T cmp.Ordered](v, lo, hi T) T {
 
 // model is the full TUI state
 type model struct {
-	profiles     []hyprsunsetProfile // all profiles, editable in the Advanced panel
-	selected     int                 // index of the profile being edited
-	cursor       int                 // selected row in the Advanced panel
-	focusedPanel panel               // which panel has focus
-	enabled      bool                // is hyprsunset currently running
-	status       string              // status line text
-	statusErr    bool                // render status as an error
-	saved        []hyprsunsetProfile // on-disk profiles, for the diff box
+	profiles      []hyprsunsetProfile // all profiles, editable in the Advanced panel
+	selected      int                 // index of the profile being edited
+	cursor        int                 // selected row in the Advanced panel
+	focusedPanel  panel               // which panel has focus
+	enabled       bool                // is hyprsunset currently running
+	status        string              // status line text
+	statusErr     bool                // render status as an error
+	saved         []hyprsunsetProfile // on-disk profiles, for the diff box
+	maxGamma      int                 // global max-gamma (%), the gamma ceiling
+	savedMaxGamma int                 // on-disk max-gamma, for the diff box
 }
 
 // current returns a pointer to the profile being edited
@@ -59,15 +63,18 @@ const (
 // live hyprsunset status, falling back to defaults on error
 func initialModel() model {
 	// Load the saved profiles; use a single default if they can't be read
-	profiles, err := loadHyprsunsetProfiles()
+	profiles, maxGamma, err := loadHyprsunsetProfiles()
 	if err != nil {
 		profiles = []hyprsunsetProfile{defaultHyprsunsetProfile()}
+		maxGamma = defaultMaxGamma
 	}
 	// Seed the model from the profiles, start focused on the Simple panel
 	m := model{
-		profiles:     profiles,
-		focusedPanel: commonPanel,
-		saved:        cloneProfiles(profiles),
+		profiles:      profiles,
+		focusedPanel:  commonPanel,
+		saved:         cloneProfiles(profiles),
+		maxGamma:      maxGamma,
+		savedMaxGamma: maxGamma,
 	}
 	// Surface a load failure in the status line
 	if err != nil {
@@ -90,10 +97,11 @@ func (m model) Init() tea.Cmd { return nil }
 
 // statusMsg carries the result of an async operation back into Update
 type statusMsg struct {
-	text    string
-	isErr   bool
-	enabled *bool
-	saved   []hyprsunsetProfile
+	text          string
+	isErr         bool
+	enabled       *bool
+	saved         []hyprsunsetProfile
+	savedMaxGamma int
 }
 
 // setEnabledCmd starts or stops the hyprsunset daemon and reports the new state.
@@ -114,13 +122,13 @@ func setEnabledCmd(enabled bool) tea.Cmd {
 }
 
 // saveConfigCmd writes the profiles to disk and updates the diff baseline
-func saveConfigCmd(profiles []hyprsunsetProfile) tea.Cmd {
+func saveConfigCmd(profiles []hyprsunsetProfile, maxGamma int) tea.Cmd {
 	saved := cloneProfiles(profiles)
 	return func() tea.Msg {
-		if err := saveHyprsunsetProfiles(saved); err != nil {
+		if err := saveHyprsunsetProfiles(saved, maxGamma); err != nil {
 			return statusMsg{text: "save: " + err.Error(), isErr: true}
 		}
-		return statusMsg{text: "saved configuration", isErr: false, saved: saved}
+		return statusMsg{text: "saved configuration", isErr: false, saved: saved, savedMaxGamma: maxGamma}
 	}
 }
 
@@ -134,6 +142,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.saved != nil {
 			m.saved = msg.saved
+			m.savedMaxGamma = msg.savedMaxGamma
 		}
 		m.status, m.statusErr = msg.text, msg.isErr
 	case tea.KeyMsg:
@@ -198,7 +207,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "s":
 			// Persist all profiles to the config file
-			return m, saveConfigCmd(m.profiles)
+			return m, saveConfigCmd(m.profiles, m.maxGamma)
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
 		}
@@ -255,17 +264,25 @@ var fields = []field{
 	}, func(m *model, d int) {
 		edit(m, temperatureBit, func() { m.current().temperature = clamp(m.current().temperature+d*tempStep, tempMin, tempMax) })
 	}},
-	// Gamma: step by gammaStep, clamped to [gammaMin, gammaMax]
+	// Gamma: step by gammaStep, clamped to [gammaMin, maxGamma]; the ceiling is
+	// the global max-gamma so the app can't set a gamma hyprsunset would reject
 	{"Gamma", gammaBit, func(m model) string {
 		return shown(m, gammaBit, func() string { return fmt.Sprintf("%.1f", m.current().gamma) })
 	}, func(m *model, d int) {
-		edit(m, gammaBit, func() { m.current().gamma = clamp(m.current().gamma+float32(d)*gammaStep, gammaMin, gammaMax) })
+		edit(m, gammaBit, func() {
+			m.current().gamma = clamp(m.current().gamma+float32(d)*gammaStep, gammaMin, float32(m.maxGamma)/100)
+		})
+	}},
+	// Max Gamma: global gamma ceiling (%), not per-profile; bit 0 = not clearable
+	{"Max Gamma", 0, func(m model) string { return fmt.Sprintf("%d%%", m.maxGamma) }, func(m *model, d int) {
+		m.maxGamma = clamp(m.maxGamma+d*maxGammaStep, maxGammaMin, maxGammaMax)
 	}},
 }
 
-// profileFields are the attribute rows (everything after the Profile selector),
-// reused by the Configuration diff box
-var profileFields = fields[1:]
+// profileFields are the per-profile attribute rows: everything except the
+// Profile selector (first) and the global Max Gamma (last), reused by the
+// Configuration diff box
+var profileFields = fields[1 : len(fields)-1]
 
 // adjustTime shifts "H:MM" by deltaMin, wrapping within a day
 func adjustTime(s string, deltaMin int) string {

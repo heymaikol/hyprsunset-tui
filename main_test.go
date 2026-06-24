@@ -202,6 +202,28 @@ func TestViewShowsConfigurationFields(t *testing.T) {
 	}
 }
 
+func TestViewMaxGammaOnlyWhenRaised(t *testing.T) {
+	base := model{profiles: []hyprsunsetProfile{{time: "07:00", temperature: 6000, gamma: 1.0}}}
+
+	// At default only the Advanced editor row shows it, not the diff box
+	def := base
+	def.maxGamma, def.savedMaxGamma = defaultMaxGamma, defaultMaxGamma
+	if n := strings.Count(def.View(), "Max Gamma"); n != 1 {
+		t.Fatalf("Max Gamma count at default = %d, want 1 (Advanced row only)", n)
+	}
+
+	// Raised and changed from disk: the diff box adds the old → new line
+	raised := base
+	raised.maxGamma, raised.savedMaxGamma = 150, defaultMaxGamma
+	view := raised.View()
+	if n := strings.Count(view, "Max Gamma"); n != 2 {
+		t.Fatalf("Max Gamma count when raised = %d, want 2 (Advanced + diff box)", n)
+	}
+	if !strings.Contains(view, "100%") || !strings.Contains(view, "→") {
+		t.Fatalf("View() = %q, want Max Gamma 100%% → 150%% diff", view)
+	}
+}
+
 func TestSpaceTogglesSimpleCheckbox(t *testing.T) {
 	binDir := t.TempDir()
 	argsFile := filepath.Join(t.TempDir(), "uwsm-args")
@@ -270,7 +292,7 @@ profile {
 		{time: "07:00", temperature: 6500, gamma: 1.0},
 		{time: "20:30", identity: true, temperature: 4250, gamma: 0.7},
 	}
-	if err := saveHyprsunsetProfiles(want); err != nil {
+	if err := saveHyprsunsetProfiles(want, defaultMaxGamma); err != nil {
 		t.Fatalf("saveHyprsunsetProfiles() error = %v", err)
 	}
 
@@ -305,6 +327,7 @@ func TestSKeySavesCurrentConfiguration(t *testing.T) {
 	m := model{
 		profiles: []hyprsunsetProfile{{time: "06:15", identity: false, temperature: 5000, gamma: 0.9}},
 		saved:    []hyprsunsetProfile{{time: "00:00", temperature: neutralTemp, gamma: neutralGamma}},
+		maxGamma: defaultMaxGamma,
 	}
 	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
 	if cmd == nil {
@@ -415,6 +438,37 @@ profile {
 			t.Fatal("parseProfiles() error = nil, want invalid gamma error")
 		}
 	})
+}
+
+func TestMaxGammaConfig(t *testing.T) {
+	if got := parseMaxGamma([]byte("max-gamma = 150 # cap\nprofile {\n}\n")); got != 150 {
+		t.Fatalf("parseMaxGamma = %d, want 150", got)
+	}
+	if got := parseMaxGamma([]byte("profile {\n}\n")); got != defaultMaxGamma {
+		t.Fatalf("parseMaxGamma (absent) = %d, want %d", got, defaultMaxGamma)
+	}
+
+	// Insert at top when non-default and absent
+	if out := string(setMaxGammaLine([]byte("profile {\n}\n"), 150)); !strings.HasPrefix(out, "max-gamma = 150\n") {
+		t.Fatalf("insert: %q, want max-gamma prefix", out)
+	}
+
+	// Replace existing line in place, no duplicate
+	out := string(setMaxGammaLine([]byte("max-gamma = 100\nprofile {\n}\n"), 200))
+	if !strings.Contains(out, "max-gamma = 200\n") || strings.Count(out, "max-gamma") != 1 {
+		t.Fatalf("replace: %q, want single max-gamma = 200", out)
+	}
+
+	// Default value, absent line: leave content untouched
+	in := "profile {\n}\n"
+	if out := string(setMaxGammaLine([]byte(in), defaultMaxGamma)); out != in {
+		t.Fatalf("default insert changed content: %q", out)
+	}
+
+	// Default value, existing line: remove it and its separator blank
+	if out := string(setMaxGammaLine([]byte("max-gamma = 150\n\nprofile {\n}\n"), defaultMaxGamma)); out != in {
+		t.Fatalf("default did not drop existing line: %q, want %q", out, in)
+	}
 }
 
 func TestCheckDependencies(t *testing.T) {

@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -15,24 +16,24 @@ func TestCursorAdjustsSelectedField(t *testing.T) {
 		return next.(model)
 	}
 
-	m := model{time: "12:00", identity: false, temp: 6000, gamma: 1.0}
+	m := model{profiles: []hyprsunsetProfile{{time: "12:00", identity: false, temperature: 6000, gamma: 1.0}}}
 
-	// cursor 0 = time
-	m = step(m, tea.KeyLeft)
-	if m.time != "11:45" {
-		t.Fatalf("time = %q, want 11:45", m.time)
+	// cursor 0 = Profile selector; down to Time
+	m = step(step(m, tea.KeyDown), tea.KeyLeft)
+	if m.current().time != "11:45" {
+		t.Fatalf("time = %q, want 11:45", m.current().time)
 	}
 
 	// down to identity, toggle
 	m = step(step(m, tea.KeyDown), tea.KeyRight)
-	if !m.identity {
+	if !m.current().identity {
 		t.Fatal("identity = false, want toggled true")
 	}
 
 	// down to temperature, lower
 	m = step(step(m, tea.KeyDown), tea.KeyLeft)
-	if m.temp != 6000-tempStep {
-		t.Fatalf("temp = %d, want %d", m.temp, 6000-tempStep)
+	if m.current().temperature != 6000-tempStep {
+		t.Fatalf("temp = %d, want %d", m.current().temperature, 6000-tempStep)
 	}
 
 	if adjustTime("00:00", -timeStep) != "23:45" {
@@ -46,7 +47,7 @@ func TestTabSwitchesBetweenPanels(t *testing.T) {
 		return next.(model)
 	}
 
-	m := model{time: "12:00", identity: false, temp: 6000, gamma: 1.0}
+	m := model{profiles: []hyprsunsetProfile{{time: "12:00", identity: false, temperature: 6000, gamma: 1.0}}}
 
 	m = step(m, tea.KeyTab)
 	if m.focusedPanel != commonPanel {
@@ -54,8 +55,8 @@ func TestTabSwitchesBetweenPanels(t *testing.T) {
 	}
 
 	m = step(m, tea.KeyLeft)
-	if m.time != "12:00" {
-		t.Fatalf("time changed while Common focused: got %q, want 12:00", m.time)
+	if m.current().time != "12:00" {
+		t.Fatalf("time changed while Common focused: got %q, want 12:00", m.current().time)
 	}
 
 	m = step(m, tea.KeyShiftTab)
@@ -63,9 +64,10 @@ func TestTabSwitchesBetweenPanels(t *testing.T) {
 		t.Fatalf("focusedPanel = %v, want advancedPanel", m.focusedPanel)
 	}
 
-	m = step(m, tea.KeyLeft)
-	if m.time != "11:45" {
-		t.Fatalf("time = %q, want 11:45", m.time)
+	// cursor 0 = Profile selector; down to Time, then adjust
+	m = step(step(m, tea.KeyDown), tea.KeyLeft)
+	if m.current().time != "11:45" {
+		t.Fatalf("time = %q, want 11:45", m.current().time)
 	}
 }
 
@@ -78,6 +80,45 @@ func TestInitialModelStartsOnSimplePanel(t *testing.T) {
 	m := initialModel()
 	if m.focusedPanel != commonPanel {
 		t.Fatalf("focusedPanel = %v, want commonPanel", m.focusedPanel)
+	}
+}
+
+func TestProfileAddDeleteKeys(t *testing.T) {
+	step := func(m model, r rune) model {
+		next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		return next.(model)
+	}
+
+	m := model{
+		focusedPanel: advancedPanel,
+		profiles:     []hyprsunsetProfile{{time: "07:00", temperature: 6000, gamma: 1.0}},
+	}
+
+	// 'n' appends a default profile and selects it
+	m = step(m, 'n')
+	if len(m.profiles) != 2 || m.selected != 1 {
+		t.Fatalf("after n: len=%d selected=%d, want 2/1", len(m.profiles), m.selected)
+	}
+
+	// 'd' removes the selected profile and clamps the selection
+	m = step(m, 'd')
+	if len(m.profiles) != 1 || m.selected != 0 {
+		t.Fatalf("after d: len=%d selected=%d, want 1/0", len(m.profiles), m.selected)
+	}
+
+	// 'd' refuses to delete the last remaining profile
+	m = step(m, 'd')
+	if len(m.profiles) != 1 {
+		t.Fatalf("after d on last: len=%d, want 1", len(m.profiles))
+	}
+	if !m.statusErr {
+		t.Fatal("deleting last profile should set an error status")
+	}
+
+	// 'n' is ignored when the Simple panel is focused
+	common := model{focusedPanel: commonPanel, profiles: []hyprsunsetProfile{{}}}
+	if got := step(common, 'n'); len(got.profiles) != 1 {
+		t.Fatalf("n on Simple panel: len=%d, want 1", len(got.profiles))
 	}
 }
 
@@ -95,10 +136,7 @@ func TestClamp(t *testing.T) {
 
 func TestViewShowsConfigurationFields(t *testing.T) {
 	view := model{
-		temp:     6000,
-		gamma:    1.0,
-		time:     "07:00",
-		identity: true,
+		profiles: []hyprsunsetProfile{{time: "07:00", identity: true, temperature: 6000, gamma: 1.0}},
 		enabled:  true,
 	}.View()
 
@@ -127,7 +165,7 @@ func TestSpaceTogglesSimpleCheckbox(t *testing.T) {
 	writeExecutable(t, binDir, "hyprctl", "#!/bin/sh\nexit 0\n")
 	writeExecutable(t, binDir, "pkill", "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$PKILL_ARGS_FILE\"\nexit 0\n")
 
-	m := model{focusedPanel: commonPanel, temp: 4500, gamma: 0.8}
+	m := model{focusedPanel: commonPanel}
 	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}})
 	if cmd == nil {
 		t.Fatal("Update(space) cmd = nil, want toggle command")
@@ -162,7 +200,7 @@ func TestSpaceTogglesSimpleCheckbox(t *testing.T) {
 	}
 }
 
-func TestSaveHyprsunsetProfileWritesConfig(t *testing.T) {
+func TestSaveHyprsunsetProfilesWritesConfig(t *testing.T) {
 	configDir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", configDir)
 	configPath := filepath.Join(configDir, hyprsunsetConfigPath)
@@ -175,43 +213,35 @@ profile {
     temperature = 6500
     gamma = 1.0
 }
-
-profile {
-    time = 19:00
-    temperature = 4500
-    gamma = 0.8
-}
 `)
 	if err := os.WriteFile(configPath, existing, 0o600); err != nil {
 		t.Fatalf("write existing config: %v", err)
 	}
 
-	want := hyprsunsetProfile{
-		time:        "20:30",
-		identity:    true,
-		temperature: 4250,
-		gamma:       0.7,
+	want := []hyprsunsetProfile{
+		{time: "07:00", temperature: 6500, gamma: 1.0},
+		{time: "20:30", identity: true, temperature: 4250, gamma: 0.7},
 	}
-	if err := saveHyprsunsetProfile(want); err != nil {
-		t.Fatalf("saveHyprsunsetProfile() error = %v", err)
+	if err := saveHyprsunsetProfiles(want); err != nil {
+		t.Fatalf("saveHyprsunsetProfiles() error = %v", err)
 	}
 
 	content, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatalf("read saved config: %v", err)
 	}
-	if !strings.Contains(string(content), "time = 07:00") {
-		t.Fatalf("saved config = %q, want first profile preserved", content)
+	if !strings.Contains(string(content), "# keep this comment") {
+		t.Fatalf("saved config = %q, want leading comment preserved", content)
 	}
 	if count := strings.Count(string(content), "profile {"); count != 2 {
 		t.Fatalf("profile count = %d, want 2", count)
 	}
-	got, err := parseContent(content)
+	got, err := parseProfiles(content)
 	if err != nil {
 		t.Fatalf("parse saved config: %v", err)
 	}
-	if got != want {
-		t.Fatalf("saved profile = %+v, want %+v", got, want)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("saved profiles = %+v, want %+v", got, want)
 	}
 	if info, err := os.Stat(configPath); err != nil {
 		t.Fatalf("stat saved config: %v", err)
@@ -225,15 +255,8 @@ func TestSKeySavesCurrentConfiguration(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", configDir)
 
 	m := model{
-		time:     "06:15",
-		identity: false,
-		temp:     5000,
-		gamma:    0.9,
-		saved: hyprsunsetProfile{
-			time:        "00:00",
-			temperature: neutralTemp,
-			gamma:       neutralGamma,
-		},
+		profiles: []hyprsunsetProfile{{time: "06:15", identity: false, temperature: 5000, gamma: 0.9}},
+		saved:    []hyprsunsetProfile{{time: "00:00", temperature: neutralTemp, gamma: neutralGamma}},
 	}
 	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
 	if cmd == nil {
@@ -243,11 +266,11 @@ func TestSKeySavesCurrentConfiguration(t *testing.T) {
 	msg := cmd()
 	next, _ = next.(model).Update(msg)
 	got := next.(model)
-	want := hyprsunsetProfile{time: "06:15", temperature: 5000, gamma: 0.9}
+	want := []hyprsunsetProfile{{time: "06:15", temperature: 5000, gamma: 0.9}}
 	if got.status != "saved configuration" || got.statusErr {
 		t.Fatalf("status = %q / %t, want saved configuration / false", got.status, got.statusErr)
 	}
-	if got.saved != want {
+	if !reflect.DeepEqual(got.saved, want) {
 		t.Fatalf("saved baseline = %+v, want %+v", got.saved, want)
 	}
 
@@ -255,28 +278,35 @@ func TestSKeySavesCurrentConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read saved config: %v", err)
 	}
-	profile, err := parseContent(content)
+	profiles, err := parseProfiles(content)
 	if err != nil {
 		t.Fatalf("parse saved config: %v", err)
 	}
-	if profile != want {
-		t.Fatalf("file profile = %+v, want %+v", profile, want)
+	if !reflect.DeepEqual(profiles, want) {
+		t.Fatalf("file profiles = %+v, want %+v", profiles, want)
 	}
 }
 
-func TestParseContent(t *testing.T) {
+func TestParseProfiles(t *testing.T) {
+	only := func(t *testing.T, config string) hyprsunsetProfile {
+		t.Helper()
+		profiles, err := parseProfiles([]byte(config))
+		if err != nil {
+			t.Fatalf("parseProfiles() error = %v", err)
+		}
+		if len(profiles) != 1 {
+			t.Fatalf("parseProfiles() len = %d, want 1", len(profiles))
+		}
+		return profiles[0]
+	}
+
 	t.Run("identity profile keeps default visible values", func(t *testing.T) {
-		config := `
+		profile := only(t, `
 profile {
     time = 07:00
     identity = true
 }
-`
-
-		profile, err := parseContent([]byte(config))
-		if err != nil {
-			t.Fatalf("parseContent() error = %v", err)
-		}
+`)
 		if profile.time != "07:00" {
 			t.Fatalf("profile.time = %q, want 07:00", profile.time)
 		}
@@ -289,24 +319,19 @@ profile {
 	})
 
 	t.Run("parses temperature and gamma", func(t *testing.T) {
-		config := `
+		profile := only(t, `
 profile {
     time = 21:00
     temperature = 5500
     gamma = 0.8
 }
-`
-
-		profile, err := parseContent([]byte(config))
-		if err != nil {
-			t.Fatalf("parseContent() error = %v", err)
-		}
+`)
 		if profile.time != "21:00" || profile.temperature != 5500 || profile.gamma != 0.8 || profile.identity {
 			t.Fatalf("profile = %+v, want 21:00 / 5500K / 0.8 / identity false", profile)
 		}
 	})
 
-	t.Run("starts each profile from defaults", func(t *testing.T) {
+	t.Run("returns every block in order", func(t *testing.T) {
 		config := `
 profile {
     time = 07:00
@@ -318,13 +343,16 @@ profile {
     temperature = 4000
 }
 `
-
-		profile, err := parseContent([]byte(config))
+		profiles, err := parseProfiles([]byte(config))
 		if err != nil {
-			t.Fatalf("parseContent() error = %v", err)
+			t.Fatalf("parseProfiles() error = %v", err)
 		}
-		if profile.time != "21:00" || profile.temperature != 4000 || profile.gamma != neutralGamma {
-			t.Fatalf("profile = %+v, want 21:00 / 4000K / %.1f", profile, neutralGamma)
+		want := []hyprsunsetProfile{
+			{time: "07:00", temperature: neutralTemp, gamma: 0.5},
+			{time: "21:00", temperature: 4000, gamma: neutralGamma},
+		}
+		if !reflect.DeepEqual(profiles, want) {
+			t.Fatalf("profiles = %+v, want %+v", profiles, want)
 		}
 	})
 
@@ -335,8 +363,8 @@ profile {
 }
 `
 
-		if _, err := parseContent([]byte(config)); err == nil {
-			t.Fatal("parseContent() error = nil, want invalid gamma error")
+		if _, err := parseProfiles([]byte(config)); err == nil {
+			t.Fatal("parseProfiles() error = nil, want invalid gamma error")
 		}
 	})
 }

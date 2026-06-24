@@ -39,24 +39,32 @@ func hyprsunsetConfigFile() (string, error) {
 	return filepath.Join(configPath, hyprsunsetConfigPath), nil
 }
 
-// loadHyprsunsetProfile reads and parses the on-disk profile
-func loadHyprsunsetProfile() (hyprsunsetProfile, error) {
+// loadHyprsunsetProfiles reads and parses every on-disk profile; an empty or
+// missing block list falls back to a single default profile
+func loadHyprsunsetProfiles() ([]hyprsunsetProfile, error) {
 	path, err := hyprsunsetConfigFile()
 	if err != nil {
-		return hyprsunsetProfile{}, err
+		return nil, err
 	}
 
 	content, err := os.ReadFile(path)
 	if err != nil {
-		return hyprsunsetProfile{}, err
+		return nil, err
 	}
 
-	return parseContent(content)
+	profiles, err := parseProfiles(content)
+	if err != nil {
+		return nil, err
+	}
+	if len(profiles) == 0 {
+		return []hyprsunsetProfile{defaultHyprsunsetProfile()}, nil
+	}
+	return profiles, nil
 }
 
-// saveHyprsunsetProfile writes the profile back, rewriting the last existing
-// profile block in place and preserving the rest of the file
-func saveHyprsunsetProfile(profile hyprsunsetProfile) error {
+// saveHyprsunsetProfiles writes the profiles back, replacing all existing
+// profile blocks and preserving the file's surrounding content and perms
+func saveHyprsunsetProfiles(profiles []hyprsunsetProfile) error {
 	path, err := hyprsunsetConfigFile()
 	if err != nil {
 		return err
@@ -70,14 +78,14 @@ func saveHyprsunsetProfile(profile hyprsunsetProfile) error {
 	mode := os.FileMode(0o644) // default perms for a freshly created file
 	content, err := os.ReadFile(path)
 	if err == nil {
-		// File exists: keep its perms and swap the last profile block
+		// File exists: keep its perms and swap the profile blocks
 		if info, statErr := os.Stat(path); statErr == nil {
 			mode = info.Mode().Perm()
 		}
-		content = replaceLastProfileContent(content, formatHyprsunsetProfile(profile))
+		content = replaceProfilesContent(content, profiles)
 	} else if os.IsNotExist(err) {
-		// No file yet: write a fresh profile
-		content = formatHyprsunsetProfile(profile)
+		// No file yet: write fresh profile blocks
+		content = formatHyprsunsetProfiles(profiles)
 	} else {
 		return err
 	}
@@ -97,49 +105,69 @@ func formatHyprsunsetProfile(profile hyprsunsetProfile) []byte {
 	return b.Bytes()
 }
 
+// formatHyprsunsetProfiles renders profiles as config blocks, blank-line separated
+func formatHyprsunsetProfiles(profiles []hyprsunsetProfile) []byte {
+	var b bytes.Buffer
+	for i, profile := range profiles {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.Write(formatHyprsunsetProfile(profile))
+	}
+	return b.Bytes()
+}
+
 func configLine(raw string) string {
 	body, _, _ := strings.Cut(raw, "#")
 	return strings.TrimSpace(body)
 }
 
-// replaceLastProfileContent swaps the last `profile { ... }` block in content
-// for profile, leaving everything else untouched; appends if none is found
-func replaceLastProfileContent(content, profile []byte) []byte {
-	// Keep newlines on each line so the file round-trips byte-for-byte
+// replaceProfilesContent replaces the whole span of `profile { ... }` blocks in
+// content with profiles, preserving the lines before the first block and after
+// the last (a leading comment header, trailing global config); appends if none
+// is found. Comments interleaved between blocks are dropped.
+func replaceProfilesContent(content []byte, profiles []hyprsunsetProfile) []byte {
+	// Keep newlines on each line so untouched regions round-trip byte-for-byte
 	lines := strings.SplitAfter(string(content), "\n")
-	lastStart, lastEnd := -1, -1 // bounds of the last complete block found
-	currentStart := -1           // start of the block currently being scanned
+	firstStart, lastEnd := -1, -1 // span of all profile blocks
+	currentStart := -1            // start of the block currently being scanned
 
-	// Find the last balanced profile block; comments (after #) are ignored
+	// Find the first block's start and the last block's end; comments are ignored
 	for i, rawLine := range lines {
 		line := configLine(rawLine)
 		switch {
 		case line == "profile {":
 			currentStart = i
 		case line == "}" && currentStart >= 0:
-			lastStart, lastEnd = currentStart, i+1
+			if firstStart < 0 {
+				firstStart = currentStart
+			}
+			lastEnd = i + 1
 			currentStart = -1
 		}
 	}
 
+	rendered := formatHyprsunsetProfiles(profiles)
+
 	// No block to replace: append, making sure there's a separating newline
-	if lastStart < 0 {
+	if firstStart < 0 {
 		if len(content) > 0 && !bytes.HasSuffix(content, []byte("\n")) {
 			content = append(content, '\n')
 		}
-		return append(content, profile...)
+		return append(content, rendered...)
 	}
 
-	// Splice the new block in place of the old one
-	replaced := append([]string{}, lines[:lastStart]...)
-	replaced = append(replaced, string(profile))
+	// Splice the new blocks in place of the old span
+	replaced := append([]string{}, lines[:firstStart]...)
+	replaced = append(replaced, string(rendered))
 	replaced = append(replaced, lines[lastEnd:]...)
 	return []byte(strings.Join(replaced, ""))
 }
 
-// parseContent extracts a profile from config bytes, returning the values of
-// the last profile block; unknown keys are ignored, bad values are errors
-func parseContent(content []byte) (hyprsunsetProfile, error) {
+// parseProfiles extracts every profile block from config bytes, in order;
+// unknown keys are ignored, bad values are errors
+func parseProfiles(content []byte) ([]hyprsunsetProfile, error) {
+	var profiles []hyprsunsetProfile
 	profile := defaultHyprsunsetProfile()
 	inProfile := false // are we inside a profile block right now
 
@@ -149,10 +177,11 @@ func parseContent(content []byte) (hyprsunsetProfile, error) {
 
 		switch {
 		case line == "profile {":
-			// New block: reset so only the last block's values win
+			// New block: start from defaults so omitted keys keep neutral values
 			profile = defaultHyprsunsetProfile()
 			inProfile = true
-		case line == "}":
+		case line == "}" && inProfile:
+			profiles = append(profiles, profile)
 			inProfile = false
 		case inProfile:
 			// Split "key = value"; skip lines without an =
@@ -169,21 +198,21 @@ func parseContent(content []byte) (hyprsunsetProfile, error) {
 			case "temperature":
 				temperature, err := strconv.Atoi(value)
 				if err != nil {
-					return profile, fmt.Errorf("invalid temperature %q", value)
+					return profiles, fmt.Errorf("invalid temperature %q", value)
 				}
 
 				profile.temperature = temperature
 			case "gamma":
 				gamma, err := strconv.ParseFloat(value, 32)
 				if err != nil {
-					return profile, fmt.Errorf("invalid gamma %q", value)
+					return profiles, fmt.Errorf("invalid gamma %q", value)
 				}
 
 				profile.gamma = float32(gamma)
 			case "identity":
 				identity, err := strconv.ParseBool(value)
 				if err != nil {
-					return profile, fmt.Errorf("invalid identity %q", value)
+					return profiles, fmt.Errorf("invalid identity %q", value)
 				}
 
 				profile.identity = identity
@@ -191,5 +220,5 @@ func parseContent(content []byte) (hyprsunsetProfile, error) {
 		}
 	}
 
-	return profile, nil
+	return profiles, nil
 }

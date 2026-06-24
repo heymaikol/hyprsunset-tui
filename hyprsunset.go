@@ -3,20 +3,8 @@ package main
 import (
 	"fmt"
 	"os/exec"
-	"strconv"
 	"strings"
 )
-
-// hyprctl runs `hyprctl hyprsunset <args>` and reports only success/failure
-func hyprctl(args ...string) error {
-	return exec.Command("hyprctl", append([]string{"hyprsunset"}, args...)...).Run()
-}
-
-// SetTemperature sets the colour temperature in Kelvin
-func SetTemperature(kelvin int) error { return hyprctl("temperature", strconv.Itoa(kelvin)) }
-
-// SetGamma sets the gamma as an integer percent (100 == 1.0)
-func SetGamma(percent int) error { return hyprctl("gamma", strconv.Itoa(percent)) }
 
 // startHyprsunset launches hyprsunset as a uwsm-managed systemd service so it
 // outlives this process; returns combined output for error context.

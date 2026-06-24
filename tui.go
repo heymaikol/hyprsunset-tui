@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"fmt"
 	"strconv"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -28,16 +27,23 @@ func clamp[T cmp.Ordered](v, lo, hi T) T {
 
 // model is the full TUI state
 type model struct {
-	temp         int               // temperature in Kelvin
-	gamma        float32           // gamma multiplier
-	cursor       int               // selected row in the Advanced panel
-	focusedPanel panel             // which panel has focus
-	time         string            // schedule time, "HH:MM"
-	identity     bool              // hyprsunset identity flag
-	enabled      bool              // is hyprsunset currently running
-	status       string            // status line text
-	statusErr    bool              // render status as an error
-	saved        hyprsunsetProfile // on-disk profile, for the diff box
+	profiles     []hyprsunsetProfile // all profiles, editable in the Advanced panel
+	selected     int                 // index of the profile being edited
+	cursor       int                 // selected row in the Advanced panel
+	focusedPanel panel               // which panel has focus
+	enabled      bool                // is hyprsunset currently running
+	status       string              // status line text
+	statusErr    bool                // render status as an error
+	saved        []hyprsunsetProfile // on-disk profiles, for the diff box
+}
+
+// current returns a pointer to the profile being edited
+func (m *model) current() *hyprsunsetProfile { return &m.profiles[m.selected] }
+
+// cloneProfiles copies a profile slice; profiles are flat value structs, so a
+// fresh backing array fully detaches it (used for the diff baseline)
+func cloneProfiles(profiles []hyprsunsetProfile) []hyprsunsetProfile {
+	return append([]hyprsunsetProfile(nil), profiles...)
 }
 
 // panel identifies a focusable region of the UI
@@ -48,22 +54,19 @@ const (
 	commonPanel                // simple enable/disable toggle
 )
 
-// initialModel builds the starting state from the on-disk profile and the
+// initialModel builds the starting state from the on-disk profiles and the
 // live hyprsunset status, falling back to defaults on error
 func initialModel() model {
-	// Load the saved profile; use defaults if it can't be read
-	profile, err := loadHyprsunsetProfile()
+	// Load the saved profiles; use a single default if they can't be read
+	profiles, err := loadHyprsunsetProfiles()
 	if err != nil {
-		profile = defaultHyprsunsetProfile()
+		profiles = []hyprsunsetProfile{defaultHyprsunsetProfile()}
 	}
-	// Seed the model from the profile, start focused on the Simple panel
+	// Seed the model from the profiles, start focused on the Simple panel
 	m := model{
-		temp:         profile.temperature,
-		gamma:        profile.gamma,
-		time:         profile.time,
-		identity:     profile.identity,
+		profiles:     profiles,
 		focusedPanel: commonPanel,
-		saved:        profile,
+		saved:        cloneProfiles(profiles),
 	}
 	// Surface a load failure in the status line
 	if err != nil {
@@ -89,44 +92,16 @@ type statusMsg struct {
 	text    string
 	isErr   bool
 	enabled *bool
-	saved   *hyprsunsetProfile
+	saved   []hyprsunsetProfile
 }
 
-// pushSettings sends temp/gamma to the running hyprsunset (not persisted)
-func pushSettings(temp int, gamma float32) error {
-	// Apply temperature first; bail out on failure
-	if err := SetTemperature(temp); err != nil {
-		return fmt.Errorf("temperature: %w", err)
-	}
-	// Gamma is sent as an integer percent (1.0 -> 100)
-	if err := SetGamma(int(gamma * 100)); err != nil {
-		return fmt.Errorf("gamma: %w", err)
-	}
-	return nil
-}
-
-// setEnabledCmd starts or stops hyprsunset and reports the new state. On enable
-// it also pushes temp/gamma so the configured warmth shows immediately without
-// a separate apply.
-func setEnabledCmd(enabled bool, temp int, gamma float32) tea.Cmd {
+// setEnabledCmd starts or stops the hyprsunset daemon and reports the new state.
+// The daemon reads the saved config and applies the time-matching profile, so no
+// values are pushed here.
+func setEnabledCmd(enabled bool) tea.Cmd {
 	return func() tea.Msg {
 		if err := SetHyprsunsetRunning(enabled); err != nil {
 			return statusMsg{text: "enabled: " + err.Error(), isErr: true}
-		}
-		if enabled {
-			// The daemon's IPC socket can lag the service start, so retry the
-			// push briefly before giving up.
-			// ponytail: 10x100ms covers the startup race; widen if slow boxes still miss
-			var err error
-			for i := 0; i < 10; i++ {
-				if err = pushSettings(temp, gamma); err == nil {
-					break
-				}
-				time.Sleep(100 * time.Millisecond)
-			}
-			if err != nil {
-				return statusMsg{text: err.Error(), isErr: true, enabled: &enabled}
-			}
 		}
 		// Human-readable label for the status line
 		state := "disabled"
@@ -137,13 +112,14 @@ func setEnabledCmd(enabled bool, temp int, gamma float32) tea.Cmd {
 	}
 }
 
-// saveConfigCmd writes the profile to disk and updates the diff baseline
-func saveConfigCmd(profile hyprsunsetProfile) tea.Cmd {
+// saveConfigCmd writes the profiles to disk and updates the diff baseline
+func saveConfigCmd(profiles []hyprsunsetProfile) tea.Cmd {
+	saved := cloneProfiles(profiles)
 	return func() tea.Msg {
-		if err := saveHyprsunsetProfile(profile); err != nil {
+		if err := saveHyprsunsetProfiles(saved); err != nil {
 			return statusMsg{text: "save: " + err.Error(), isErr: true}
 		}
-		return statusMsg{text: "saved configuration", isErr: false, saved: &profile}
+		return statusMsg{text: "saved configuration", isErr: false, saved: saved}
 	}
 }
 
@@ -156,7 +132,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.enabled = *msg.enabled
 		}
 		if msg.saved != nil {
-			m.saved = *msg.saved
+			m.saved = msg.saved
 		}
 		m.status, m.statusErr = msg.text, msg.isErr
 	case tea.KeyMsg:
@@ -190,18 +166,31 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break
 			}
 			fields[m.cursor].adjust(&m, 1)
+		case "n":
+			// New profile (Advanced only): append a default and select it
+			if m.focusedPanel != advancedPanel {
+				break
+			}
+			m.profiles = append(m.profiles, defaultHyprsunsetProfile())
+			m.selected = len(m.profiles) - 1
+		case "d":
+			// Delete the selected profile (Advanced only); keep at least one
+			if m.focusedPanel != advancedPanel {
+				break
+			}
+			if len(m.profiles) == 1 {
+				m.status, m.statusErr = "keep at least one profile", true
+				break
+			}
+			m.profiles = append(m.profiles[:m.selected], m.profiles[m.selected+1:]...)
+			m.selected = clamp(m.selected, 0, len(m.profiles)-1)
 		case " ":
 			if m.focusedPanel == commonPanel {
-				return m, setEnabledCmd(!m.enabled, m.temp, m.gamma)
+				return m, setEnabledCmd(!m.enabled)
 			}
 		case "s":
-			// Persist the current values to the profile file
-			return m, saveConfigCmd(hyprsunsetProfile{
-				time:        m.time,
-				temperature: m.temp,
-				gamma:       m.gamma,
-				identity:    m.identity,
-			})
+			// Persist all profiles to the config file
+			return m, saveConfigCmd(m.profiles)
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
 		}
@@ -216,17 +205,35 @@ type field struct {
 	adjust func(m *model, dir int)
 }
 
-// fields is the ordered list of editable rows in the Advanced panel
+// fields is the ordered list of rows in the Advanced panel. fields[0] selects
+// which profile is being edited; the rest edit that profile's attributes.
 var fields = []field{
+	// Profile: cycle the selected profile; render shows position in the list
+	{"Profile", func(m model) string { return fmt.Sprintf("[%d/%d]", m.selected+1, len(m.profiles)) }, func(m *model, d int) {
+		n := len(m.profiles)
+		m.selected = (m.selected + d + n) % n
+	}},
 	// Time: shift by timeStep minutes, wrapping at midnight
-	{"Time", func(m model) string { return m.time }, func(m *model, d int) { m.time = adjustTime(m.time, d*timeStep) }},
+	{"Time", func(m model) string { return m.current().time }, func(m *model, d int) {
+		m.current().time = adjustTime(m.current().time, d*timeStep)
+	}},
 	// Identity: boolean toggle; direction is ignored
-	{"Identity", func(m model) string { return strconv.FormatBool(m.identity) }, func(m *model, d int) { m.identity = !m.identity }},
+	{"Identity", func(m model) string { return strconv.FormatBool(m.current().identity) }, func(m *model, d int) {
+		m.current().identity = !m.current().identity
+	}},
 	// Temperature: step by tempStep K, clamped to [tempMin, tempMax]
-	{"Temperature", func(m model) string { return strconv.Itoa(m.temp) + " K" }, func(m *model, d int) { m.temp = clamp(m.temp+d*tempStep, tempMin, tempMax) }},
+	{"Temperature", func(m model) string { return strconv.Itoa(m.current().temperature) + " K" }, func(m *model, d int) {
+		m.current().temperature = clamp(m.current().temperature+d*tempStep, tempMin, tempMax)
+	}},
 	// Gamma: step by gammaStep, clamped to [gammaMin, gammaMax]
-	{"Gamma", func(m model) string { return fmt.Sprintf("%.1f", m.gamma) }, func(m *model, d int) { m.gamma = clamp(m.gamma+float32(d)*gammaStep, gammaMin, gammaMax) }},
+	{"Gamma", func(m model) string { return fmt.Sprintf("%.1f", m.current().gamma) }, func(m *model, d int) {
+		m.current().gamma = clamp(m.current().gamma+float32(d)*gammaStep, gammaMin, gammaMax)
+	}},
 }
+
+// profileFields are the attribute rows (everything after the Profile selector),
+// reused by the Configuration diff box
+var profileFields = fields[1:]
 
 // adjustTime shifts "H:MM" by deltaMin, wrapping within a day
 func adjustTime(s string, deltaMin int) string {

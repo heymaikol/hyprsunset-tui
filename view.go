@@ -76,19 +76,28 @@ func (m model) View() string {
 	advanced := renderBox("Advanced", strings.TrimRight(adv.String(), "\n"), m.focusedPanel == advancedPanel)
 	left := lipgloss.JoinVertical(lipgloss.Left, common, advanced) // stack the two left-column boxes
 
-	// Configuration box: reuse field renders against a model holding the on-disk values
-	old := m
-	old.time, old.identity = m.saved.time, m.saved.identity
-	old.temp, old.gamma = m.saved.temperature, m.saved.gamma
+	// Configuration box: list every profile, diffing live values against the
+	// on-disk baseline (saved[i]); newly added profiles have no baseline
 	var prof strings.Builder
-	for _, f := range fields {
-		cur, was := f.render(m), f.render(old) // current vs saved value
-		val := valStyle.Render(cur)
-		// Show "old → new" when the live value differs from disk
-		if cur != was {
-			val = dimStyle.Render(was) + " → " + valStyle.Render(cur)
+	for i := range m.profiles {
+		if i > 0 {
+			prof.WriteByte('\n')
 		}
-		fmt.Fprintf(&prof, "%s: %s\n", f.label, val)
+		fmt.Fprintf(&prof, "%s\n", dimStyle.Render(fmt.Sprintf("Profile %d", i+1)))
+		live := model{profiles: m.profiles, selected: i}
+		hasBaseline := i < len(m.saved)
+		old := model{profiles: m.saved, selected: i}
+		for _, f := range profileFields {
+			cur := f.render(live)
+			val := valStyle.Render(cur)
+			// Show "old → new" when the live value differs from disk
+			if hasBaseline {
+				if was := f.render(old); cur != was {
+					val = dimStyle.Render(was) + " → " + valStyle.Render(cur)
+				}
+			}
+			fmt.Fprintf(&prof, "%s: %s\n", f.label, val)
+		}
 	}
 	// Pad Configuration body so its box matches the stacked-left column height;
 	// box adds 2 border rows, so body needs leftHeight-2 lines
@@ -105,7 +114,7 @@ func (m model) View() string {
 	// Two-line key hint footer; first line depends on the focused panel
 	directions := "[tab] panel   [space] toggle"
 	if m.focusedPanel == advancedPanel {
-		directions = "[tab] panel   [↑/↓] select   [←/→] adjust"
+		directions = "[tab] panel   [↑/↓] select   [←/→] adjust   [n] new   [d] del"
 	}
 	fmt.Fprintf(&b, "\n%s\n", dimStyle.Render(directions))
 	fmt.Fprintf(&b, "%s\n", dimStyle.Render("[s] save   [q] quit"))

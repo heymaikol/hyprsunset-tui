@@ -126,6 +126,80 @@ func TestProfileAddDeleteKeys(t *testing.T) {
 	}
 }
 
+func TestSimpleDayNightControl(t *testing.T) {
+	key := func(m model, k tea.KeyType) model {
+		next, _ := m.Update(tea.KeyMsg{Type: k})
+		return next.(model)
+	}
+
+	// A single profile shows only the Day row (Enabled + 3 Day cells)
+	one := model{profiles: []hyprsunsetProfile{{time: "07:00", temperature: 6000, gamma: 1.0}}}
+	if got := one.simpleCellCount(); got != 1+len(simpleProfileFields) {
+		t.Fatalf("one-profile cells = %d, want %d", got, 1+len(simpleProfileFields))
+	}
+
+	// With Day + Night, navigate to the Night temperature and lower it
+	m := model{profiles: []hyprsunsetProfile{
+		{time: "07:00", temperature: 6000, gamma: 1.0},
+		{time: "20:00", temperature: 4000, gamma: 0.9},
+	}}
+	// Cells: 0=Enabled, 1=DayTime, 2=DayTemp, 3=DayGamma, 4=NightTime, 5=NightTemp...
+	for i := 0; i < 5; i++ {
+		m = key(m, tea.KeyDown)
+	}
+	m = key(m, tea.KeyLeft) // lower Night temperature
+	if m.profiles[1].temperature != 4000-tempStep {
+		t.Fatalf("night temp = %d, want %d", m.profiles[1].temperature, 4000-tempStep)
+	}
+	if m.profiles[0].temperature != 6000 {
+		t.Fatalf("day temp = %d, want 6000 (untouched)", m.profiles[0].temperature)
+	}
+
+	// Down stops at the last cell
+	for i := 0; i < 10; i++ {
+		m = key(m, tea.KeyDown)
+	}
+	if m.simpleCursor != m.simpleCellCount()-1 {
+		t.Fatalf("cursor = %d, want clamped to %d", m.simpleCursor, m.simpleCellCount()-1)
+	}
+}
+
+func TestViewShowsDayNightRows(t *testing.T) {
+	// One profile: Simple shows only the Day row, no Night
+	one := model{profiles: []hyprsunsetProfile{{time: "07:00", temperature: 6000, gamma: 1.0}}}.View()
+	if !strings.Contains(one, "Day") {
+		t.Fatalf("View() missing Day row: %q", one)
+	}
+	if strings.Contains(one, "Night") {
+		t.Fatalf("View() shows Night with a single profile: %q", one)
+	}
+
+	// Two profiles: both rows show
+	two := model{profiles: []hyprsunsetProfile{
+		{time: "07:00", temperature: 6000, gamma: 1.0},
+		{time: "20:00", temperature: 4000, gamma: 0.9},
+	}}.View()
+	if !strings.Contains(two, "Day") || !strings.Contains(two, "Night") {
+		t.Fatalf("View() missing Day/Night rows: %q", two)
+	}
+}
+
+func TestConfigurationUsesDayNightLabels(t *testing.T) {
+	three := []hyprsunsetProfile{
+		{time: "07:00", temperature: 6000, gamma: 1.0},
+		{time: "20:00", temperature: 4000, gamma: 0.9},
+		{time: "23:00", temperature: 3000, gamma: 0.8},
+	}
+	v := model{profiles: three}.View()
+	// Day/Night replace the numbered labels; extras stay numbered
+	if strings.Contains(v, "Profile 1") || strings.Contains(v, "Profile 2") {
+		t.Fatalf("Configuration still uses numbered Day/Night labels: %q", v)
+	}
+	if !strings.Contains(v, "Profile 3") {
+		t.Fatalf("Configuration missing numbered label for extra profile: %q", v)
+	}
+}
+
 func TestBackspaceClearsAndReaddsField(t *testing.T) {
 	step := func(m model, k tea.KeyType) model {
 		next, _ := m.Update(tea.KeyMsg{Type: k})

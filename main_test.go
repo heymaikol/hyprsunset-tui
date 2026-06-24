@@ -465,9 +465,10 @@ func TestMaxGammaConfig(t *testing.T) {
 		t.Fatalf("default insert changed content: %q", out)
 	}
 
-	// Default value, existing line: remove it and its separator blank
-	if out := string(setMaxGammaLine([]byte("max-gamma = 150\n\nprofile {\n}\n"), defaultMaxGamma)); out != in {
-		t.Fatalf("default did not drop existing line: %q, want %q", out, in)
+	// Default value, existing line: replace it in place without separator cleanup
+	want := "max-gamma = 100\n\nprofile {\n}\n"
+	if out := string(setMaxGammaLine([]byte("max-gamma = 150\n\nprofile {\n}\n"), defaultMaxGamma)); out != want {
+		t.Fatalf("default replace: %q, want %q", out, want)
 	}
 }
 

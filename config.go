@@ -131,7 +131,7 @@ func parseMaxGamma(content []byte) int {
 
 // setMaxGammaLine makes the top-level `max-gamma = N` line reflect maxGamma:
 // replaces an existing line in place, inserts one at the top when non-default,
-// otherwise leaves content untouched (keeps default configs clutter-free)
+// otherwise leaves content untouched.
 func setMaxGammaLine(content []byte, maxGamma int) []byte {
 	line := fmt.Sprintf("max-gamma = %d", maxGamma)
 	lines := strings.SplitAfter(string(content), "\n")
@@ -139,15 +139,6 @@ func setMaxGammaLine(content []byte, maxGamma int) []byte {
 		key, _, ok := strings.Cut(configLine(rawLine), "=")
 		if !ok || strings.TrimSpace(key) != "max-gamma" {
 			continue
-		}
-		// Default needs no line: drop it (and its separator blank) so the file
-		// stays clean, since absent already means 100
-		if maxGamma == defaultMaxGamma {
-			lines[i] = ""
-			if i+1 < len(lines) && strings.TrimSpace(lines[i+1]) == "" {
-				lines[i+1] = ""
-			}
-			return []byte(strings.Join(lines, ""))
 		}
 		nl := ""
 		if strings.HasSuffix(rawLine, "\n") {

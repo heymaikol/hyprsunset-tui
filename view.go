@@ -9,7 +9,6 @@ import (
 
 // Lipgloss styles, shared across the view
 var (
-	titleStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214")) // app title (orange)
 	valStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("81"))  // current values (cyan)
 	focusStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214")) // focused Simple cell (orange)
 	dimStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))            // help text / old values (grey)
@@ -101,10 +100,9 @@ func simpleBody(m model) string {
 	return b.String()
 }
 
-// View renders the whole UI: title, Simple/Advanced panels, Configuration diff, and help
+// View renders the whole UI: Simple/Advanced panels, Configuration diff, and help
 func (m model) View() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s\n\n", titleStyle.Render("hstui"))
 
 	// Build the Advanced panel body, marking the selected row with "> "
 	var adv strings.Builder

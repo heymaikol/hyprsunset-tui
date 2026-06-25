@@ -360,6 +360,13 @@ profile {
     temperature = 6500
     gamma = 1.0
 }
+
+# night notes stay with the profile list
+profile {
+    time = 22:00
+    temperature = 3500
+    gamma = 0.6
+}
 `)
 	if err := os.WriteFile(configPath, existing, 0o600); err != nil {
 		t.Fatalf("write existing config: %v", err)
@@ -380,8 +387,17 @@ profile {
 	if !strings.Contains(string(content), "# keep this comment") {
 		t.Fatalf("saved config = %q, want leading comment preserved", content)
 	}
+	leading := strings.Index(string(content), "# keep this comment")
+	interleaved := strings.Index(string(content), "# night notes stay with the profile list")
+	if interleaved < 0 {
+		t.Fatalf("saved config = %q, want interleaved comment preserved", content)
+	}
 	if count := strings.Count(string(content), "profile {"); count != 2 {
 		t.Fatalf("profile count = %d, want 2", count)
+	}
+	secondProfile := strings.LastIndex(string(content), "profile {")
+	if !(leading < interleaved && interleaved < secondProfile) {
+		t.Fatalf("saved config = %q, want interleaved comment between profile blocks", content)
 	}
 	got, err := parseProfiles(content)
 	if err != nil {

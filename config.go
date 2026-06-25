@@ -183,27 +183,28 @@ func configLine(raw string) string {
 	return strings.TrimSpace(body)
 }
 
-// replaceProfilesContent replaces the whole span of `profile { ... }` blocks in
-// content with profiles, preserving the lines before the first block and after
-// the last (a leading comment header, trailing global config); appends if none
-// is found. Comments interleaved between blocks are dropped.
+// replaceProfilesContent replaces existing `profile { ... }` blocks in content
+// with profiles, preserving non-profile lines before, between, and after them;
+// appends if none is found.
 func replaceProfilesContent(content []byte, profiles []hyprsunsetProfile) []byte {
+	type blockRange struct {
+		start int
+		end   int
+	}
+
 	// Keep newlines on each line so untouched regions round-trip byte-for-byte
 	lines := strings.SplitAfter(string(content), "\n")
-	firstStart, lastEnd := -1, -1 // span of all profile blocks
-	currentStart := -1            // start of the block currently being scanned
+	var blocks []blockRange
+	currentStart := -1 // start of the block currently being scanned
 
-	// Find the first block's start and the last block's end; comments are ignored
+	// Find each block's range; comments are ignored
 	for i, rawLine := range lines {
 		line := configLine(rawLine)
 		switch {
 		case line == "profile {":
 			currentStart = i
 		case line == "}" && currentStart >= 0:
-			if firstStart < 0 {
-				firstStart = currentStart
-			}
-			lastEnd = i + 1
+			blocks = append(blocks, blockRange{start: currentStart, end: i + 1})
 			currentStart = -1
 		}
 	}
@@ -211,17 +212,30 @@ func replaceProfilesContent(content []byte, profiles []hyprsunsetProfile) []byte
 	rendered := formatHyprsunsetProfiles(profiles)
 
 	// No block to replace: append, making sure there's a separating newline
-	if firstStart < 0 {
+	if len(blocks) == 0 {
 		if len(content) > 0 && !bytes.HasSuffix(content, []byte("\n")) {
 			content = append(content, '\n')
 		}
 		return append(content, rendered...)
 	}
 
-	// Splice the new blocks in place of the old span
-	replaced := append([]string{}, lines[:firstStart]...)
-	replaced = append(replaced, string(rendered))
-	replaced = append(replaced, lines[lastEnd:]...)
+	// Replace only the profile block lines, leaving comments or other settings
+	// between blocks in their original positions.
+	var replaced []string
+	cursor := 0
+	profileIndex := 0
+	for _, block := range blocks {
+		replaced = append(replaced, lines[cursor:block.start]...)
+		if profileIndex < len(profiles) {
+			replaced = append(replaced, string(formatHyprsunsetProfiles(profiles[profileIndex:profileIndex+1])))
+			profileIndex++
+		}
+		cursor = block.end
+	}
+	if profileIndex < len(profiles) {
+		replaced = append(replaced, "\n", string(formatHyprsunsetProfiles(profiles[profileIndex:])))
+	}
+	replaced = append(replaced, lines[cursor:]...)
 	return []byte(strings.Join(replaced, ""))
 }
 

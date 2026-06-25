@@ -396,7 +396,7 @@ profile {
 		t.Fatalf("profile count = %d, want 2", count)
 	}
 	secondProfile := strings.LastIndex(string(content), "profile {")
-	if !(leading < interleaved && interleaved < secondProfile) {
+	if leading >= interleaved || interleaved >= secondProfile {
 		t.Fatalf("saved config = %q, want interleaved comment between profile blocks", content)
 	}
 	got, err := parseProfiles(content)

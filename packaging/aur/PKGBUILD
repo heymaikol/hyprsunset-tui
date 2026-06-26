@@ -1,13 +1,16 @@
 # Maintainer: Michael Placzek <mplaczek99@users.noreply.github.com>
 
-pkgname=hstui
+pkgname=hyprsunset-tui
 pkgver=1.1.0
-pkgrel=1
+pkgrel=2
 pkgdesc='Terminal user interface for managing hyprsunset on Hyprland'
 arch=('x86_64')
-url='https://github.com/mplaczek99/hstui'
+url='https://github.com/mplaczek99/hyprsunset-tui'
 license=('GPL-3.0-only')
 options=('!debug')
+provides=('hstui')
+conflicts=('hstui')
+replaces=('hstui')
 depends=('glibc' 'hyprland' 'hyprsunset' 'libnotify' 'uwsm')
 makedepends=('git' 'go')
 source=("git+${url}.git#tag=v${pkgver}")

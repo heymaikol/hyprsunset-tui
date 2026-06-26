@@ -1,4 +1,4 @@
-module hstui
+module hyprsunset-tui
 
 go 1.26.4
 

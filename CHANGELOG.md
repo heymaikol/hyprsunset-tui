@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Continuous integration workflow (`.github/workflows/ci.yml`) running build, vet, and lint checks.
-- AUR packaging under `packaging/aur/` (`PKGBUILD`, `.SRCINFO`) for installing hstui as an Arch package.
+- AUR packaging under `packaging/aur/` (`PKGBUILD`, `.SRCINFO`) for installing hyprsunset-tui as an Arch package.
 - Linker/build flags in the `PKGBUILD` to strip symbols and produce a smaller binary.
 
 ### Changed
@@ -30,5 +30,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release.
 
-[1.1.0]: https://github.com/mplaczek99/hstui/compare/v1.0.0...v1.1.0
-[1.0.0]: https://github.com/mplaczek99/hstui/releases/tag/v1.0.0
+[1.1.0]: https://github.com/mplaczek99/hyprsunset-tui/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/mplaczek99/hyprsunset-tui/releases/tag/v1.0.0

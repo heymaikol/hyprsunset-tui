@@ -26,7 +26,7 @@ func main() {
 	}
 }
 
-// CheckDependencies verifies the external commands hstui needs are available.
+// CheckDependencies verifies the external commands hyprsunset-tui needs are available.
 func CheckDependencies() error {
 	for _, bin := range []string{"hyprsunset", "uwsm", "notify-send"} {
 		if _, err := exec.LookPath(bin); err != nil {
@@ -37,13 +37,13 @@ func CheckDependencies() error {
 	return nil
 }
 
-// Notify sends a critical desktop notification for hstui.
+// Notify sends a critical desktop notification for hyprsunset-tui.
 func Notify(body string) error {
 	return exec.Command(
 		"notify-send",
-		"-a", "hstui",
+		"-a", "hyprsunset-tui",
 		"-u", "critical",
-		"hstui",
+		"hyprsunset-tui",
 		body,
 	).Run()
 }

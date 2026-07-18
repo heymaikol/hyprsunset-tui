@@ -1,5 +1,7 @@
 # hyprsunset-tui
 
+![hyprsunset-tui demo](assets/demo.gif)
+
 `hyprsunset-tui` is a terminal user interface for managing `hyprsunset` on Hyprland.
 
 Instead of only editing a static config file, it provides an interactive way to control temperature, gamma, and runtime behavior from the terminal. The goal is to make `hyprsunset` feel more like a controllable desktop utility while still fitting naturally into keyboard-driven Hyprland workflows.
